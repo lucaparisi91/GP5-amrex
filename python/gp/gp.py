@@ -1,6 +1,7 @@
 import numpy as np
 
 
+
 class geometry:
     def __init__(self,domain,shape):
         self.domain=domain

@@ -13,8 +13,6 @@ using namespace amrex;
 using geometry_t = Geometry;
 using real_t = Real;
 
-
-
 class level
 {
     public:
