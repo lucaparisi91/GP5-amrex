@@ -1,5 +1,7 @@
 #include "gpLevel.h"
 
+namespace gp
+{
 geometry_t createGeometry( amrex::Array<real_t,AMREX_SPACEDIM> left,amrex::Array<real_t,AMREX_SPACEDIM> right,amrex::Array<size_t,AMREX_SPACEDIM> shape   )
 {
     geometry_t geom;
@@ -58,6 +60,15 @@ void initGaussian(level & currentLevel, real_t alpha)
         }
 }
 
+void level::saveHDF5( const std::string & filename) const
+{
+    WriteSingleLevelPlotfileHDF5(filename,
+                               getMultiFab(),
+                               {"phi"},
+                               getGeometry(),
+                               getTime(),
+                               0);
+}
 
 void level::updateDensity()
 {
@@ -96,6 +107,8 @@ void level::updateDensity()
 
 real_t level::getNorm()
 {
+    updateDensity();
+
     /* !!!!!   requires the density to have been updated */
     auto & density = getDensity();
 
@@ -201,5 +214,173 @@ amrex::Vector< const amrex::MultiFab* > getMultiFabsPtr( const amrex::Vector<lev
 };
 
 
+levels::levels( std::vector<std::shared_ptr<level> > levels_ ) : _levels(levels_)   {
+
+    _finestLevel=_levels.size() - 1;
+    _refRatios.resize(  _levels.size() - 1 );
+    for(int lev=0;lev<_finestLevel;lev++)
+    {
+        const auto & geoCoarse = _levels[lev]->getGeometry();
+        const auto & geoFine = _levels[lev+1]->getGeometry();
+        const auto & shapeCoarse= geoCoarse.Domain().length();
+        const auto & shapeFine= geoFine.Domain().length();
+
+        for(int d=0;d<AMREX_SPACEDIM;d++)
+        {
+            _refRatios[lev][d] = shapeFine[d]/shapeCoarse[d];
+
+            if (shapeFine[d] % shapeCoarse[d] != 0 )
+            {
+                throw std::runtime_error("Refinement ratio between levels should be an integer");
+            }
+        }
+
+    }
+}
 
 
+
+amrex::Vector< amrex::MultiFab* > levels::getMultiFabsPtr( )
+{
+    amrex::Vector<amrex::MultiFab*> fabs;
+
+    for( int lev=0;lev<size();lev++)
+    {        
+        fabs.push_back( &( _levels[lev]->getMultiFab()) );
+    };
+
+    return fabs;
+}
+
+amrex::Vector< const amrex::MultiFab* > levels::getMultiFabsPtr( ) const
+{
+    amrex::Vector< const amrex::MultiFab*> fabs;
+
+    for( int lev=0;lev<size();lev++)
+    {        
+        fabs.push_back( &( _levels[lev]->getMultiFab()) );
+    };
+
+    return fabs;
+};
+
+
+amrex::Vector<amrex::BoxArray> levels::getBoxArray( ) const
+{
+    amrex::Vector< amrex::BoxArray> bas;
+
+    for( int lev=0;lev<size();lev++)
+    {        
+        bas.push_back( _levels[lev]->getBoxArray() ) ;
+    };
+
+    return bas;
+};
+
+amrex::Vector<amrex::DistributionMapping> levels::getDistributionMapping( ) const
+{
+    amrex::Vector< amrex::DistributionMapping> dms;
+    for( int lev=0;lev<size();lev++)
+    {        
+        dms.push_back( _levels[lev]->getDistributionMap() ) ;
+    };
+
+    return dms;
+};
+
+
+amrex::Vector< amrex::Geometry > levels::getGeometry( ) const
+{
+    amrex::Vector< amrex::Geometry> geoms;
+    for( int lev=0;lev<size();lev++)
+    {        
+        geoms.push_back( _levels[lev]->getGeometry() ) ;
+    };
+    return geoms;
+};
+
+amrex::Vector< real_t >  levels::getTimes( ) const
+{
+    amrex::Vector< real_t> times;
+    for( int lev=0; lev<size(); lev++)
+    {        
+        times.push_back( _levels[lev]->getTime() ) ;
+    };
+    return times;
+};
+
+void levels::averageDown ()
+{
+    for (int lev = size()-2 ; lev >= 0; --lev)
+    {
+        auto & phiCoarse = _levels[lev]->getMultiFab();
+        const auto & phiFine = _levels[lev + 1]->getMultiFab();
+        auto & geomCoarse = _levels[lev]->getGeometry();
+        const auto & geomFine = _levels[lev + 1]->getGeometry();
+
+        const auto & ref =  _refRatios[lev] ;
+        amrex::IntVect ratio{ AMREX_D_DECL(ref[0],ref[1],ref[2])} ;        
+
+        amrex::average_down( phiFine, phiCoarse,
+                            geomFine, geomCoarse,
+                            0, _levels[0]->getNComponents() , ratio );
+        
+        auto & densityCoarse = _levels[lev]->getDensity();
+        const auto & densityFine = _levels[lev + 1]->getDensity();
+
+        amrex::average_down( densityFine, densityCoarse,
+                            geomFine, geomCoarse,
+                            0, _levels[0]->getNComponents() , ratio );
+    }
+
+
+}
+
+
+void levels::save(const std::string & filename) const 
+{
+    const auto& mf = getMultiFabsPtr( );
+    auto geoms= getGeometry();
+    amrex::Vector<int> iStep( _levels.size() , 0 );
+    
+    amrex::WriteMultiLevelPlotfileHDF5(filename,size(),mf,{"phi"},geoms,_levels[0]->getTime(),iStep, _refRatios );
+
+}
+
+
+void levels::normalize( real_t N) 
+{
+
+    
+    for(int lev=0;lev<size();lev++)
+    {
+        _levels[lev]->updateDensity();
+    }
+    
+
+    averageDown();
+
+    auto oldN = _levels[0]->getNorm();
+
+
+
+    auto C = sqrt(N/oldN);
+
+    for(int lev=0;lev<size();lev++)
+    {
+        auto & phi = _levels[lev]->getMultiFab();
+        phi.mult( C, 0, _levels[lev]->getNComponents() );
+    }
+
+
+}
+
+
+
+
+
+
+
+
+
+}

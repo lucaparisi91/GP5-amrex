@@ -5,6 +5,7 @@ project( gpAmreX C CXX Fortran )
 
 add_subdirectory(src)
 add_subdirectory(pybind)
+add_subdirectory(tst)
 
 
 

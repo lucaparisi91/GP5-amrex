@@ -15,6 +15,8 @@
 
 using namespace amrex;
 
+namespace gp{
+
 // constructor - reads in parameters from inputs file
 //             - sizes multilevel arrays and data structures
 //             - initializes BCRec boundary condition object
@@ -909,5 +911,7 @@ AmrCoreAdv::ReadCheckpointFile ()
     }
 
     
+
+}
 
 }

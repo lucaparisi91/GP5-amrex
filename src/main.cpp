@@ -17,6 +17,9 @@
 #include "gpLevel.h"
 #include "operators.h"
 
+using namespace gp;
+
+
 using namespace amrex;
 int main(int argc, char* argv[])
 {
@@ -42,6 +45,7 @@ int main(int argc, char* argv[])
 
     amrex::Vector<level> levelsNew(nLevels);
     amrex::Vector<level> levelsOld(nLevels);
+
 
     levelsNew[0].define( geom0,ba0,dm0);
     levelsOld[0].define( geom0,ba0,dm0);

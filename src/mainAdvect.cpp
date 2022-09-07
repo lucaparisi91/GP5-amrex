@@ -6,15 +6,17 @@
 #include <AMReX_PlotFileUtil.H>
 #include "AmrCoreAdv.H"
 
-
 using namespace amrex;
 using real_t = Real;
-
+using namespace gp;
 
 
 int main(int argc, char* argv[])
 {
-    amrex::Initialize(argc,argv);
+    argc=0;
+    argv = nullptr;
+    amrex::Initialize( argc,argv  );
+
     {
         // timer for profiling
         BL_PROFILE("main()");
@@ -23,19 +25,15 @@ int main(int argc, char* argv[])
         // wallclock time
         const auto strt_total = amrex::second();
 
-
         amrex::Array<real_t,AMREX_SPACEDIM> left { AMREX_D_DECL(-25,-25,-25)};
         amrex::Array<real_t,AMREX_SPACEDIM> right { AMREX_D_DECL( 25, 25,25) };
 
         amrex::RealBox real_box({AMREX_D_DECL(left[0],left[1],left[2])},
                          {AMREX_D_DECL( right[0], right[1], right[2])});
-
-        
-        
-
-
+    
         
         AmrCoreAdv amr_core_adv(real_box,{AMREX_D_DECL(64,64,64)}, { { AMREX_D_DECL(2,2,2)},{AMREX_D_DECL(2,2,2)},{AMREX_D_DECL(2,2,2)},{ AMREX_D_DECL(4,4,4)  }  }      );
+
 
         // initialize AMR data
         amr_core_adv.InitData();

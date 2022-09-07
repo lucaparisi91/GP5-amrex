@@ -15,6 +15,9 @@
 #include "gpLevel.h"
 #include "operators.h"
 
+
+namespace gp{
+
 class AmrCoreAdv
     : public amrex::AmrCore
 {
@@ -227,3 +230,4 @@ private:
     };
 
 #endif
+}

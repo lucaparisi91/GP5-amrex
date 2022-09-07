@@ -6,14 +6,14 @@ using namespace amrex;
 
 // advance all levels for a single time step
 void
-AmrCoreAdv::AdvancePhiAllLevels (Real time, Real dt_lev, int /*iteration*/)
+gp::AmrCoreAdv::AdvancePhiAllLevels (Real time, Real dt_lev, int /*iteration*/)
 {
     swapOldNewFields();
     _lap.apply( getOldLevels(),getNewLevels() );
-
+    
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        
+
         auto & phiNew = fieldNew[lev].getMultiFab();
         auto & phiOld = fieldOld[lev].getMultiFab();
         auto & geo= fieldNew[lev].getGeometry();

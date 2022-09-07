@@ -2,11 +2,11 @@
 cmake_minimum_required(VERSION 3.20)
 include(../init.cmake)
 # List of source files
-set(_sources AdvancePhiAllLevels.cpp AmrCoreAdv.cpp  AmrCoreAdv.H )
+set(_sources AdvancePhiAllLevels.cpp AmrCoreAdv.cpp  AmrCoreAdv.H  )
 
 
 
-add_library( gpAmrex gpLevel.cpp operators.cpp )
+add_library( gpAmrex gpLevel.cpp operators.cpp timeStepper.cpp )
 setup(gpAmrex)
 
 add_executable(levelTest main.cpp )
