@@ -6,7 +6,8 @@ import numpy as np
 import gpAmreX
 import matplotlib.pylab as plt
 import tqdm
-
+from pathlib import Path
+        
 
 
 
@@ -87,6 +88,24 @@ class levels(unittest.TestCase):
         self.assertEqual( len(b.right), 2  )
         self.assertEqual( b.right[0], 63  )
         self.assertEqual( b.right[1], 63  )
+    
+    def test_geometrySelect(self):
+        geo=gp.geometry(  [ (-5,5) , (-5,5) ] , (20,20)    )
+
+        idx=geo.index( [-3.8,-3.2 ]  )
+        self.assertEqual(idx[0],2)
+        self.assertEqual(idx[1],3)
+
+        selectionBox=geo.selectBox( [(-2,2),(-3,3)] )
+        self.assertEqual( selectionBox.left[0], 6 )
+        self.assertEqual( selectionBox.left[1], 4 )
+        
+        self.assertEqual( selectionBox.right[0], 14 )
+        self.assertEqual( selectionBox.right[1], 16 )
+
+
+
+
 
 
 
@@ -232,36 +251,109 @@ class functional(unittest.TestCase):
         phi2.save("gp")
 
 
+
+def createVortexGrid(domain,shape,alpha, selections=[] ):
+            geo=gp.geometry(  domain, shape    )
+            level=gp.level( geo,[geo.domainBox()] )
+            levels=[level]
+
+            nLevels=len(selections) + 1
+            for lev in range(1,nLevels):
+                ref=[2,2]
+                geo=levels[lev-1].geo
+                geo2=geo.refine(ref)
+                box2=geo.selectBox(selections[lev-1]  ).refine(ref)
+
+                levels.append( gp.level(geo2,[box2]) )
+            
+            # initialize gaussian
+            for level in levels:
+                X,Y = gp.grid(level.boxes[0],level.geo)
+                r=np.sqrt(X**2 + Y**2)
+                phi=np.exp(-alpha*r**2)
+                level[0]=phi
+            phi=gp.field(levels)
+            phi.averageDown()
+            return phi
+
+
+
+
+
 class timeStepping(gpTest):
 
     def test_eulero(self):
         alpha=1/(2*2**2)
-        shape=(128,128)
+        shape=(64,64)
+        domain=[ [-15,15],[-15,15] ]
+        selections=[ [ [-2,2] , [-2,2]     ]  ,[  [-1,1] , [-1,1]   ] , [ [-0.5,0.5], [-0.5,0.5]  ] , [[-0.1,0.1],[-0.1,0.1]] ]
 
-        phiOld=createGaussianLayer(domain=[[-10,10],[-10,10]] , alpha=alpha,shape=shape)
-        phiNew=createGaussianLayer(domain=[[-10,10],[-10,10]] , alpha=alpha,shape=shape)
 
+        phiOld=createVortexGrid(domain,shape,alpha,selections=selections)
+        phiNew=createVortexGrid(domain,shape,alpha,selections=selections)
 
 
         phiOld.norm=1
 
-        dt=0.1* phiOld[0].geo.cellSize[0] **2
+        phiOld.save("init")
 
 
-        func=gp.trappedVortex(g=1,omega=[1,1] )
+        dt=0.01* phiOld[3].geo.cellSize[0] **2
+
+
+        func=gp.trappedVortex(g=1000,omega=[1,1] )
+        func.define(phiOld)
+        stepper=gp.stepper( func )
+        func.addVortex( [0,0 ] )
+
+
+        Path("output").mkdir(parents=True, exist_ok=True)
+        phiOld.save("output/phi_{:d}".format(0) )
+
+
+        for iBlock in tqdm.tqdm(range(100) ):
+            for iStep in range(1000):
+                stepper.advance( phiOld,phiNew, dt )
+                phiNew.norm=1
+                phiOld, phiNew = phiNew, phiOld
+            phiOld.save("output/phi_{:d}".format(iBlock+1) )
+
+
+
+        
+    def test_euleroTwoLevels(self):
+        alpha=1/(2*2**2)
+        shape=(64,64)
+        
+        
+
+        phiOld=createGaussianBiLayer(domain=[[-15,20],[-20,20]] , alpha=alpha,shape=shape)
+        phiNew=createGaussianBiLayer(domain=[[-20,20],[-20,20]] , alpha=alpha,shape=shape)
+
+
+        phiOld.norm=1
+
+        dt=0.01* phiOld[1].geo.cellSize[0] **2
+
+
+        func=gp.trappedVortex(g=10000,omega=[1,1] )
         func.cpp().define(phiOld.cpp())
         stepper=gpAmreX.stepper( func.cpp() )
+        #func.addVortex( [0,0 ] )
+
+
+
 
         phiOld.save("init")
 
 
-        for iStep in tqdm.tqdm(range(100000) ):
+        for iStep in tqdm.tqdm(range(10000) ):
             stepper.advance( phiOld.cpp(),phiNew.cpp(), dt )
+            phiNew.averageDown()
             phiNew.norm=1
             phiOld, phiNew = phiNew, phiOld
-        
+    
         phiOld.save("result")
-
 
 
 

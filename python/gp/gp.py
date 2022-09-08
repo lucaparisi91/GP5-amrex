@@ -1,6 +1,8 @@
 import numpy as np
 import gpAmreX
 
+
+
 class box:
     def __init__(self,extent):
         self.extent=extent
@@ -32,7 +34,6 @@ class box:
         return self._boxCpp
     
 
-
 class geometry:
     def __init__(self,domain,shape):
         self.domain=domain
@@ -41,6 +42,28 @@ class geometry:
         right=np.array( [ extent[1] for extent in self.domain] )
 
         self.geometryCpp=gpAmreX.geometry(left,right,self.shape)
+    
+
+    def index(self,x):
+        return np.array((np.array(x) - self.left)/self.cellSize).astype(np.int64)
+
+    def selectBox( self, domainSelection):
+        
+        left=[ext[0] for ext in domainSelection ]
+        right=[ext[1] for ext in domainSelection ]
+        
+        boxLeft=self.index( left )
+        boxRight=self.index( right )
+
+        extent=list(zip(boxLeft,boxRight))
+
+        return box(extent)
+
+         
+
+
+        return box(extent)
+
     
     def cpp(self):
         return self.geometryCpp
@@ -145,7 +168,8 @@ class trappedVortex:
         self._trappedVortexCpp=gpAmreX.trappedVortex(g,omega)
         self._initialized=False
 
-
+    def define(self,phi):
+        self.cpp().define(phi.cpp() )
     def cpp( self ):
         return self._trappedVortexCpp
 
@@ -160,8 +184,15 @@ class trappedVortex:
 
 
 
+class stepper:
+    def __init__(self,func):
+        self._stepperCpp=gpAmreX.stepper( func.cpp() )
 
-
+    def cpp(self):
+        return self._stepperCpp
+    def advance(self,phiOld,phiNew,dt):
+        self.cpp().advance(phiOld.cpp(),phiNew.cpp(),dt)
+        
 
 def grid( box,geo):
     dims=len(box.shape)
