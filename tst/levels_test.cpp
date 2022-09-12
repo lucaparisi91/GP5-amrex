@@ -4,7 +4,7 @@
 #include "../src/operators.h"
 #define TOL 1e-7
 
-void testGaussian(gp::level & currentLevel, real_t alpha)
+void testGaussian(gp::realLevel & currentLevel, real_t alpha, int iComponent=0)
 {
     auto & phi = currentLevel.getMultiFab();
     auto & geom = currentLevel.getGeometry();
@@ -31,7 +31,7 @@ void testGaussian(gp::level & currentLevel, real_t alpha)
             #if AMREX_SPACE_DIM > 2
                 r2 += z*z;
             #endif
-                ASSERT_NEAR( exp( - alpha*r2) , phiArr(i,j,k) , TOL);
+                ASSERT_NEAR( exp( - alpha*r2) , phiArr(i,j,k,iComponent) , TOL);
 
 
             });
@@ -39,7 +39,8 @@ void testGaussian(gp::level & currentLevel, real_t alpha)
         }
 }
 
-void testGaussianLaplacian(gp::level & currentLevel, real_t alpha, real_t tol)
+
+void testGaussianLaplacian(gp::realLevel & currentLevel, real_t alpha, real_t tol)
 {
     auto & phi = currentLevel.getMultiFab();
     auto & geom = currentLevel.getGeometry();
@@ -74,22 +75,26 @@ void testGaussianLaplacian(gp::level & currentLevel, real_t alpha, real_t tol)
         }
 }
 
-
-
 TEST( levels, initGaussian )
 {
     auto geo = gp::createGeometry( { AMREX_D_DECL(-1,-1,-1)},{AMREX_D_DECL(1,1, 1)},{AMREX_D_DECL(64,64,64 ) });
     Box dom( geo.Domain());
     BoxArray ba(dom);
     DistributionMapping dm(ba);
-    
-    gp::level level0(geo,ba,dm);
+
+
+    gp::realLevel level0(geo,ba,dm,2);
     real_t alpha=1./2;
 
-    initGaussian(level0,alpha);
-    testGaussian(level0,alpha);
+    initGaussian(level0,alpha,0);
+    testGaussian(level0,alpha,0);
 
+    initGaussian(level0,alpha,1);
+    testGaussian(level0,alpha,1);
+
+    
 }
+
 
 TEST( level, saveGaussian )
 {
@@ -98,15 +103,79 @@ TEST( level, saveGaussian )
     BoxArray ba(dom);
     DistributionMapping dm(ba);
     
-    gp::level level0(geo,ba,dm);
+    gp::realLevel level0(geo,ba,dm);
+
     real_t alpha=1./2;
 
     initGaussian(level0,alpha);
 
-    level0.saveHDF5("gauss");
-    
+    level0.saveHDF5("gauss");    
 
 }
+
+
+TEST( complexLevel, laplacian )
+{
+    auto geo = gp::createGeometry( { AMREX_D_DECL(-1,-1,-1)},{AMREX_D_DECL(1,1, 1)},{AMREX_D_DECL(64,64,64 ) });
+    Box dom( geo.Domain());
+    BoxArray ba(dom);
+    DistributionMapping dm(ba);
+
+    auto levLeft= std::make_shared<gp::complexLevel>(geo,ba,dm);
+    auto levRight= std::make_shared<gp::complexLevel>(geo,ba,dm);
+    levLeft->getMultiFab().mult(0);
+    levRight->getMultiFab().mult(0);
+    
+
+
+    
+
+    real_t alphaReal=1./(2*0.1*0.1);
+    real_t alphaImag=1./(2*0.2*0.2);
+
+    initGaussian(*levLeft,alphaReal,0);
+    initGaussian(*levLeft,alphaImag,1);
+
+    gp::levels<gp::complexLevel> levelsLeft ({levLeft});
+    gp::levels<gp::complexLevel> levelsRight ({levRight});
+
+    auto lap = std::make_shared<gp::laplacianOperation>();
+    lap->define(levelsLeft);
+    lap->apply(levelsLeft,levelsRight);
+
+    levelsLeft.save("gaussComplex");
+    levelsRight.save("lap-gaussComplex");
+
+}
+
+
+TEST( level, normalizationSingleLayer )
+{
+    auto geo = gp::createGeometry( { AMREX_D_DECL(-1,-1,-1)},{AMREX_D_DECL(1,1, 1)},{AMREX_D_DECL(64,64,64 ) });
+    Box dom( geo.Domain());
+    BoxArray ba(dom);
+    DistributionMapping dm(ba);
+
+    auto level0=std::make_shared<gp::realLevel>(geo,ba,dm);
+    real_t alpha=1./(2*0.1*0.1);
+    initGaussian(*level0,alpha);
+    ASSERT_NEAR( level0->getNorm(0), 2*M_PI*0.1*0.1/2,1e-9);
+
+    level0=std::make_shared<gp::realLevel>(  geo, ba, dm  );
+    initGaussian(*level0,alpha);
+    gp::levels<gp::realLevel> levels( { level0 } );
+
+    ASSERT_NEAR( levels.getNorm(0), 2*M_PI*0.1*0.1/2,1e-9);
+
+    auto norm = levels.getNorm();
+
+    ASSERT_EQ(norm.size(),1);
+    ASSERT_EQ( norm[0], levels.getNorm(0) );    
+
+}
+
+
+
 
 
 auto createBiLayer()
@@ -122,11 +191,26 @@ auto createBiLayer()
     DistributionMapping dm1(ba1);
 
     
-    auto level0=std::make_shared<gp::level> (geo0,ba0,dm0);
-    auto level1=std::make_shared<gp::level> (geo1,ba1,dm1);
+    auto level0=std::make_shared<gp::realLevel> (geo0,ba0,dm0);
+    auto level1=std::make_shared<gp::realLevel> (geo1,ba1,dm1);
     
-    gp::levels levels( { level0,level1});
+    gp::realLevels levels( { level0,level1});
     return levels;
+
+}
+
+TEST( level, normalizationBiLayer )
+{
+    auto phi = createBiLayer();
+
+    real_t alpha=1/(2*0.1*0.1);
+
+    initGaussian(phi[0],alpha);
+    initGaussian(phi[1],alpha);
+    phi.averageDown();
+
+    ASSERT_NEAR( phi.getNorm(0), 2*M_PI*0.1*0.1/2, 2e-4 ) ;
+
 
 }
 
@@ -146,13 +230,13 @@ TEST( levels, saveGaussian )
     DistributionMapping dm1(ba1);
 
     
-    auto level0=std::make_shared<gp::level> (geo0,ba0,dm0);
-    auto level1=std::make_shared<gp::level> (geo1,ba1,dm1);
+    auto level0=std::make_shared<gp::realLevel> (geo0,ba0,dm0);
+    auto level1=std::make_shared<gp::realLevel> (geo1,ba1,dm1);
 
 
     real_t alpha=1./(2*0.1*0.1);
 
-    gp::levels levels( { level0,level1});
+    gp::realLevels levels( { level0,level1});
 
 
     ASSERT_EQ(levels.size(),2);
@@ -193,6 +277,8 @@ TEST( levels, laplacian )
 
 }
 
+
+
 TEST(levels,gp)
 {
     auto levelsLeft = createBiLayer();
@@ -209,7 +295,7 @@ TEST(levels,gp)
     func.addVortex({AMREX_D_DECL(0,0,0)} );
     func.define( levelsLeft);
     func.apply( levelsLeft, levelsRight );
-    
+
     levelsRight.averageDown();
     levelsRight.save("gpFunc");
 

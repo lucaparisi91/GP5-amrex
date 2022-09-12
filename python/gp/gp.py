@@ -32,7 +32,7 @@ class box:
         return self.right - self.left + 1
     def cpp(self):
         return self._boxCpp
-    
+
 
 class geometry:
     def __init__(self,domain,shape):
@@ -42,7 +42,7 @@ class geometry:
         right=np.array( [ extent[1] for extent in self.domain] )
 
         self.geometryCpp=gpAmreX.geometry(left,right,self.shape)
-    
+
 
     def index(self,x):
         return np.array((np.array(x) - self.left)/self.cellSize).astype(np.int64)
@@ -93,40 +93,72 @@ class geometry:
 
 
 
+def cppLevelType(dtype):
+    if not (dtype in ["real","complex"] ):
+        raise RuntimeError("level dtype not supported")
+    
+    return gpAmreX.realLevel if dtype == "real" else gpAmreX.complexLevel 
+
+
 
 class level:
 
-    def __init__(self,geo,boxes):
+    def __init__(self,geo,boxes,dtype="real",nComponents=1):
         self.geo=geo
         self.boxes=boxes
+        self.nComponents=nComponents
         self.data=[]
         for currentBox in boxes:
             self.data.append(np.zeros(currentBox.shape) )
 
         cppBoxes= [ curBox.cpp() for curBox in boxes ]
+        realComponents=nComponents
+        if (dtype=="complex"):
+            realComponents*=2
+        
 
-        self._levelCpp= gpAmreX.level( geo.cpp(),cppBoxes )
+        levelType = cppLevelType(dtype)
+    
 
 
+        self._levelCpp= levelType( geo.cpp(),cppBoxes, nComponents )
+        self._dtype=dtype
 
+    @property
+    def dtype(self ):
+        return self._dtype
+    
 
     @property
     def norm(self):
         return self.cpp().getNorm()
-    
-
-    
-    
 
     def cpp(self):
         return self._levelCpp
     
+
     def __getitem__(self, i):
-        return self.cpp().getData(self.boxes[i].cpp() )
+        data=self.cpp().getData(self.boxes[i].cpp() )
+        data=np.squeeze(data)
+        return (data)
+    
+
     def __setitem__(self, i,data):
-        return self.cpp().setData(data, self.boxes[i].cpp() )    
-    
-    
+        cBox=self.boxes[i]
+        if len(data.shape) == len( cBox.shape):
+                data=data.reshape(data.shape + (1,) )
+        if self._dtype == complex:
+                shape2=data.shape
+                shape2[-1]*=2
+                data2=np.zeros(shape2)
+                for iC in range(self.nComponents):
+                    data2[...,iC*2]=np.real(data[...,iC])
+                    data2[...,iC*2+1]=np.imag(data[...,iC])
+                data=data2
+                    
+        
+        return self.cpp().setData(data, self.boxes[i].cpp() )
+
 
 
 
@@ -152,14 +184,10 @@ class field:
     @property
     def norm(self):
         return self.cpp().getNorm()
-
+    
     @norm.setter
     def norm(self,N):
         self.cpp().normalize(N)
-
-    
-    
-
 
 class trappedVortex:
     def __init__( self, g=1,omega=[1,1] ):
@@ -183,15 +211,16 @@ class trappedVortex:
 
 
 
-
 class stepper:
     def __init__(self,func):
         self._stepperCpp=gpAmreX.stepper( func.cpp() )
-
     def cpp(self):
         return self._stepperCpp
     def advance(self,phiOld,phiNew,dt):
         self.cpp().advance(phiOld.cpp(),phiNew.cpp(),dt)
+    
+    
+    
         
 
 def grid( box,geo):

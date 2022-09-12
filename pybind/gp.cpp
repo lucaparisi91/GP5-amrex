@@ -31,7 +31,6 @@ namespace pyInterfaceAmreX
         amrex::Finalize(  );
     }
 
-
     class geometry
     {
         public:
@@ -78,6 +77,8 @@ namespace pyInterfaceAmreX
             _box=amrex::Box( low, hi      );
         }
 
+
+
         std::array<int,AMREX_SPACEDIM>  getLow() const 
         {
             const auto & low = _box.smallEnd();
@@ -100,12 +101,12 @@ namespace pyInterfaceAmreX
         amrex::Box _box;
     };
 
-
+    template<class level_t>
     class level
     {
         public:
 
-        level( const geometry & geo, std::vector<box> & boxes)
+        level( const geometry & geo, std::vector<box> & boxes, int nComponents )
         {
 
             auto & geoCpp = geo.getGeometry();
@@ -121,7 +122,7 @@ namespace pyInterfaceAmreX
             amrex::BoxArray ba(bl);
             amrex::DistributionMapping dm(ba);
 
-            _level=std::make_shared<gp::level>(geoCpp,ba,dm);
+            _level=std::make_shared<level_t>(geoCpp,ba,dm,nComponents);
 
         }
 
@@ -134,17 +135,18 @@ namespace pyInterfaceAmreX
         {
             // set up python array
             py::buffer_info info = phiPy.request();
-            if (info.shape.size() != AMREX_SPACEDIM )
+            if (info.shape.size() != AMREX_SPACEDIM + 1 )
             {
-                throw std::runtime_error(std::string("Numpy array should have rank ") + std::to_string(AMREX_SPACEDIM));
+                throw std::runtime_error(std::string("Numpy array should have rank ") + std::to_string(AMREX_SPACEDIM + 1));
             };
-            auto phiArrPy = phiPy.unchecked<AMREX_SPACEDIM>();
+            auto phiArrPy = phiPy.unchecked<AMREX_SPACEDIM + 1>();
 
             const auto & box = pyBox.getBox();
 
 
             auto & phi = _level->getMultiFab();
-
+            int nc= _level->getNComponents();
+                
 
             for ( amrex::MFIter mfi(phi); mfi.isValid(); ++mfi )
             {
@@ -152,14 +154,17 @@ namespace pyInterfaceAmreX
                 const Box& vbx = mfi.validbox();
                 auto const& phiArr = phi.array(mfi);
                 auto & lo = vbx.smallEnd();
-
+                
                 if (vbx == box) {
 
                       amrex::ParallelFor(vbx,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                
-                        phiArr(i,j,k)=phiArrPy( AMREX_D_DECL(i-lo[0],j-lo[1],k - lo[2]) );
+                        for(int c=0 ; c< nc ; c++)
+                        {
+                            phiArr(i,j,k,c)=phiArrPy( AMREX_D_DECL(i-lo[0],j-lo[1],k - lo[2]) , c );
+                        }
+                        
                     });
 
                     return;
@@ -168,17 +173,20 @@ namespace pyInterfaceAmreX
 
             }
 
-
         }
 
 
-        auto getNorm() const  { return _level->getNorm();}
+        auto getNorm(  ) const  { return _level->getNorm(); }
+
 
         auto getData(box & pyBox)
         {
             const auto & box = pyBox.getBox();
 
             auto & phi = _level->getMultiFab();
+
+            int nc = _level->getNComponents();
+
 
             for ( MFIter mfi(phi); mfi.isValid(); ++mfi )
             {
@@ -187,16 +195,19 @@ namespace pyInterfaceAmreX
                 auto & lo = vbx.smallEnd();
                 const auto & shape = vbx.length();
 
-                
+
                 if (vbx == box) {
-                     py::array_t<double> phiPy( { AMREX_D_DECL( shape[0],shape[1],shape[2]) } ) ;
-                     auto phiArrPy = phiPy.mutable_unchecked<AMREX_SPACEDIM>();
+                     py::array_t<double> phiPy( { AMREX_D_DECL( shape[0],shape[1],shape[2] ) , nc } ) ;
+                     auto phiArrPy = phiPy.mutable_unchecked<AMREX_SPACEDIM + 1 >();
 
                       amrex::ParallelFor(vbx,
                         [&] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                
-                        phiArrPy( AMREX_D_DECL(i-lo[0],j-lo[1],k - lo[2]) )=phiArr(i,j,k);
+                        for(int c=0;c<nc;c++)
+                        {
+                            phiArrPy( AMREX_D_DECL(i-lo[0],j-lo[1],k - lo[2]) ,c )=phiArr(i,j,k,c);
+                        }
+                        
                     });
 
                     return phiPy;
@@ -212,27 +223,32 @@ namespace pyInterfaceAmreX
 
         private:
 
-        std::shared_ptr<gp::level> _level;
+        std::shared_ptr<level_t> _level;
 
 
     };
 
 
+    using realLevel=level<gp::realLevel>;
+    using complexLevel=level<gp::complexLevel>;
+
+
+    template<class level_t>
     class field
     {
         public:
 
-        field(std::vector<level> & levels)
+        field(std::vector<level<level_t > > & levels)
         {
-
-            std::vector<std::shared_ptr<gp::level> > levelsPtr;
+            
+            std::vector<std::shared_ptr<level_t> > levelsPtr;
 
             for ( auto & level : levels)
             {
                 levelsPtr.push_back( level.getLevelPtr() );
             }
 
-            _levels=std::make_shared<gp::levels>(levelsPtr);
+            _levels=std::make_shared<gp::levels<level_t> >(levelsPtr);
 
         }
 
@@ -240,10 +256,6 @@ namespace pyInterfaceAmreX
         {
             _levels->averageDown();
         }
-
-
-
-
 
         void save( const std::string & filename)
         {
@@ -254,23 +266,26 @@ namespace pyInterfaceAmreX
 
         auto & getLevels() {return *_levels;}
 
+        void normalize(const std::vector<real_t>  & N ) { _levels->normalize(N) ; }
 
-        void normalize(real_t N ) { _levels->normalize(N) ; }
+        std::vector<real_t> getNorm() { return _levels->getNorm() ;   }
 
-
-        real_t getNorm() { return _levels->getNorm() ;   }
-
-
+        
         private:
 
-        std::shared_ptr<gp::levels> _levels;
+        std::shared_ptr<gp::levels<level_t>  > _levels;
     };
+
+    using realField=field<gp::realLevel> ;
+    using complexField=field<gp::complexLevel> ;
+
 
     class functional
     {
         public:
 
-        virtual void apply( field & levelsOld , field & levelsNew)=0;
+        virtual void apply( realField & levelsOld , realField & levelsNew)=0;
+
         virtual std::shared_ptr<gp::functional> getFunctional()=0;
 
 
@@ -291,15 +306,16 @@ namespace pyInterfaceAmreX
             _trappedVortex->addVortex(x);
         }
 
-        void apply( field & levelsOld , field & levelsNew)
+        void apply( realField & levelsOld , realField & levelsNew)
         {
             _trappedVortex->apply( levelsOld.getLevels(),levelsNew.getLevels() );
         }
 
-        void define( field & initLevels )
+        void define( realField & initLevels )
         {
             _trappedVortex->define( initLevels.getLevels()   );
         }
+
 
 
         std::shared_ptr<gp::functional> getFunctional() {return _trappedVortex; }
@@ -309,7 +325,6 @@ namespace pyInterfaceAmreX
         std::shared_ptr<gp::trappedVortex> _trappedVortex;
 
     };
-
 
     class stepper
     {
@@ -323,11 +338,10 @@ namespace pyInterfaceAmreX
         };
 
 
-        void advance( field & oldLevels, field & newLevels,real_t dt)
+        void advance( realField & oldLevels, realField & newLevels,real_t dt)
         {
             _stepper->advance(oldLevels.getLevels(),newLevels.getLevels(),dt);
         }
-
 
         private:
 
@@ -351,23 +365,25 @@ PYBIND11_MODULE(gpAmreX, m) {
      .def("getLow",&pyInterfaceAmreX::box::getLow)
       .def("getHigh",&pyInterfaceAmreX::box::getHigh);
     
-    py::class_<pyInterfaceAmreX::level>(m, "level")
-     .def(py::init<  const pyInterfaceAmreX::geometry & , std::vector<pyInterfaceAmreX::box> &  >() )  
-     .def("setData",&pyInterfaceAmreX::level::setData)
-     .def("getData",&pyInterfaceAmreX::level::getData) 
-     .def("save",&pyInterfaceAmreX::level::save) 
-     .def("getNorm",&pyInterfaceAmreX::level::getNorm) 
 
+    py::class_<pyInterfaceAmreX::level<gp::realLevel> >(m, "realLevel")
+     .def(py::init<  const pyInterfaceAmreX::geometry & , std::vector<pyInterfaceAmreX::box> &  , int >() )  
+     .def("setData",&pyInterfaceAmreX::level<gp::realLevel>::setData)
+     .def("getData",&pyInterfaceAmreX::level<gp::realLevel>::getData) 
+     .def("save",&pyInterfaceAmreX::level<gp::realLevel>::save) 
+     .def("getNorm",&pyInterfaceAmreX::level<gp::realLevel>::getNorm) 
      ;
 
 
-    py::class_<pyInterfaceAmreX::field>(m, "field")
-     .def(py::init<  std::vector<pyInterfaceAmreX::level> &  >() )
-     .def("save",&pyInterfaceAmreX::field::save)
-     .def("averageDown",&pyInterfaceAmreX::field::averageDown)
-     .def("getNorm",&pyInterfaceAmreX::field::getNorm)
-     .def("normalize",&pyInterfaceAmreX::field::normalize);
 
+    py::class_<pyInterfaceAmreX::field<gp::realLevel> >(m, "field")
+     .def(py::init<  std::vector<pyInterfaceAmreX::realLevel > &  >() )
+     .def("save",&pyInterfaceAmreX::realField::save)
+     .def("averageDown",&pyInterfaceAmreX::realField::averageDown)
+     .def("getNorm",&pyInterfaceAmreX::realField::getNorm)
+     .def("normalize",&pyInterfaceAmreX::realField::normalize);
+
+    
 
     py::class_<pyInterfaceAmreX::functional>(m, "functional" )
     .def("apply",& pyInterfaceAmreX::functional::apply)

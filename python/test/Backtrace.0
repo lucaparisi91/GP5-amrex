@@ -1,0 +1,138 @@
+=== If no file names and line numbers are shown below, one can run
+            addr2line -Cpfie my_exefile my_line_address
+    to convert `my_line_address` (e.g., 0x4a6b) into file name and line number.
+    Or one can use amrex/Tools/Backtrace/parse_bt.py.
+
+=== Please note that the line number reported by addr2line may not be accurate.
+    One can use
+            readelf -wl my_exefile | grep my_line_address'
+    to find out the offset for that line.
+
+ 0: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace20print_backtrace_infoEP8_IO_FILE+0x45) [0x7f6e6890f1a5]
+
+ 1: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace7handlerEi+0x362) [0x7f6e689110f2]
+
+ 2: /lib/x86_64-linux-gnu/libc.so.6(+0x430c0) [0x7f6e772280c0]
+
+ 3: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp9realLevel13updateDensityEv+0x16f) [0x7f6e68818eff]
+
+ 4: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp5level7getNormEi+0x6f) [0x7f6e6881a67f]
+
+ 5: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp5level7getNormEv+0x8a) [0x7f6e6881a77a]
+
+ 6: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x8ac75) [0x7f6e68804c75]
+
+ 7: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x816a8) [0x7f6e687fb6a8]
+
+ 8: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x904b3) [0x7f6e6880a4b3]
+
+ 9: python(+0x17ffa4) [0x55ba0f1d0fa4]
+
+10: python(_PyObject_MakeTpCall+0x15e) [0x55ba0f19352e]
+
+11: python(+0xaea74) [0x55ba0f0ffa74]
+
+12: python(+0x1052a5) [0x55ba0f1562a5]
+
+13: python(+0x18f742) [0x55ba0f1e0742]
+
+14: python(+0x1769d2) [0x55ba0f1c79d2]
+
+15: python(_PyObject_GenericGetAttrWithDict+0x27d) [0x55ba0f19ab2d]
+
+16: python(PyObject_GetAttr+0x46) [0x55ba0f18cb66]
+
+17: python(_PyEval_EvalFrameDefault+0x5050) [0x55ba0f2370e0]
+
+18: python(+0x18f742) [0x55ba0f1e0742]
+
+19: python(+0x18fc9b) [0x55ba0f1e0c9b]
+
+20: python(+0x104425) [0x55ba0f155425]
+
+21: python(+0x18f742) [0x55ba0f1e0742]
+
+22: python(+0x1049f3) [0x55ba0f1559f3]
+
+23: python(+0x18f742) [0x55ba0f1e0742]
+
+24: python(+0x18fd4e) [0x55ba0f1e0d4e]
+
+25: python(_PyObject_Call+0x20a) [0x55ba0f198faa]
+
+26: python(_PyEval_EvalFrameDefault+0x26e4) [0x55ba0f234774]
+
+27: python(+0x18f742) [0x55ba0f1e0742]
+
+28: python(_PyObject_FastCallDictTstate+0x6a) [0x55ba0f1d105a]
+
+29: python(+0x1981d5) [0x55ba0f1e91d5]
+
+30: python(_PyObject_MakeTpCall+0x15e) [0x55ba0f19352e]
+
+31: python(_PyEval_EvalFrameDefault+0x3bb) [0x55ba0f23244b]
+
+32: python(+0x18f742) [0x55ba0f1e0742]
+
+33: python(+0x18fd4e) [0x55ba0f1e0d4e]
+
+34: python(_PyObject_Call+0x20a) [0x55ba0f198faa]
+
+35: python(_PyEval_EvalFrameDefault+0x26e4) [0x55ba0f234774]
+
+36: python(+0x18f742) [0x55ba0f1e0742]
+
+37: python(_PyObject_FastCallDictTstate+0x6a) [0x55ba0f1d105a]
+
+38: python(+0x1981d5) [0x55ba0f1e91d5]
+
+39: python(_PyObject_MakeTpCall+0x15e) [0x55ba0f19352e]
+
+40: python(_PyEval_EvalFrameDefault+0x3bb) [0x55ba0f23244b]
+
+41: python(+0x18f742) [0x55ba0f1e0742]
+
+42: python(+0x18fd4e) [0x55ba0f1e0d4e]
+
+43: python(_PyObject_Call+0x20a) [0x55ba0f198faa]
+
+44: python(_PyEval_EvalFrameDefault+0x26e4) [0x55ba0f234774]
+
+45: python(+0x18f742) [0x55ba0f1e0742]
+
+46: python(_PyObject_FastCallDictTstate+0x6a) [0x55ba0f1d105a]
+
+47: python(+0x1981d5) [0x55ba0f1e91d5]
+
+48: python(_PyObject_MakeTpCall+0x15e) [0x55ba0f19352e]
+
+49: python(_PyEval_EvalFrameDefault+0x3bb) [0x55ba0f23244b]
+
+50: python(+0x18f742) [0x55ba0f1e0742]
+
+51: python(+0x1049f3) [0x55ba0f1559f3]
+
+52: python(+0x18f742) [0x55ba0f1e0742]
+
+53: python(+0x1049f3) [0x55ba0f1559f3]
+
+54: python(+0x18f742) [0x55ba0f1e0742]
+
+55: python(_PyObject_FastCallDictTstate+0x6a) [0x55ba0f1d105a]
+
+56: python(+0x198029) [0x55ba0f1e9029]
+
+57: python(+0x15e311) [0x55ba0f1af311]
+
+58: python(_PyObject_MakeTpCall+0x204) [0x55ba0f1935d4]
+
+59: python(_PyEval_EvalFrameDefault+0x4ce5) [0x55ba0f236d75]
+
+60: python(+0x18f742) [0x55ba0f1e0742]
+
+61: python(PyEval_EvalCode+0x88) [0x55ba0f1ef578]
+
+62: python(+0x2548fb) [0x55ba0f2a58fb]
+
+63: python(+0x28d3a5) [0x55ba0f2de3a5]
+

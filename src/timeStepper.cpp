@@ -4,10 +4,11 @@
 
 namespace gp
 {
-    void euleroTimeStepper::advance( levels & oldLevels, levels & newLevels, real_t dt )
+
+    void euleroTimeStepper::advance( realLevels & oldLevels, realLevels & newLevels, real_t dt )
     {
         _func->apply(oldLevels,newLevels);
-
+        
         for(int lev=0;lev<oldLevels.size();lev++)
         {
             const auto & phiOld = oldLevels[lev].getMultiFab();
