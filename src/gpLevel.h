@@ -35,7 +35,6 @@ class level
      virtual int getNSpecies() const = 0;
     auto getNComponents() const {return _nComponents;}
 
-
     virtual void define( geometry_t geom, BoxArray ba, DistributionMapping dm , int nComponents = 1 )
     {
         _nComponents=nComponents;
@@ -45,15 +44,27 @@ class level
             throw std::runtime_error("Level should be invalidated first.");
         }
 
-    
         _geom=geom;_ba=ba;_dm=dm;
-        _phi.define(_ba,_dm,_nComponents,_nGrow);
-        
+        _phi.resize( nComponents);
+        for(int i=0;i<nComponents;i++)
+        {
+            _phi[i].define(_ba,_dm,1,_nGrow);
+        }
+
         _invalid=false;
     }
 
-    auto &     getMultiFab() {return _phi;};
-    const auto &     getMultiFab() const  {return _phi;};
+    auto &     getMultiFabs() {return _phi;};
+    const auto &     getMultiFabs() const  {return _phi;};
+
+
+    auto &     getMultiFab( size_t i = 0 ) {return _phi[i];};
+    const auto &     getMultiFab( size_t i=0 ) const  {return _phi[i];};
+
+    auto & operator[](size_t i ) {return getMultiFab(i);}
+    const auto & operator[](size_t i ) const {return getMultiFab(i);}
+
+
 
     auto &  getGeometry() {return _geom; };
     const auto &  getGeometry() const {return _geom; };
@@ -69,24 +80,40 @@ class level
     virtual amrex::Vector<std::string> varnames() const = 0 ;
 
 
-    virtual void updateDensity()=0;
+    virtual void updateDensity(size_t i = 0  )=0;
 
-    virtual amrex::MultiFab & getDensity()=0;
-    virtual const amrex::MultiFab & getDensity() const =0;
+
+    virtual void updateDensity()
+    {
+        for(int i=0;i<getNSpecies();i++)
+        {
+            updateDensity(i);
+        }
+    }
+
+    virtual amrex::MultiFab & getDensity(size_t i = 0)=0;
+    virtual const amrex::MultiFab & getDensity(size_t i = 0 ) const =0;
 
     void setTime( real_t tNew) {_time=tNew;}
 
     void increaseTime(real_t dt ) {_time+=dt;}
 
     auto getTime() const {return _time; };
-    
 
-    virtual void clear() { _phi.clear() ;   _invalid=true; }
+    virtual void clear() {
+        for(int i=0;i<getNComponents();i++)
+        {
+            _phi[i].clear() ;
+        }
+        _invalid=true; 
+
+    }
 
     auto isValid() const {return !_invalid;}
 
-    void saveHDF5(const std::string & filename) const;
+    void saveHDF5(const std::string & filename,size_t i ) const;
 
+    void saveHDF5(const std::string & dirname) const  ;
 
     real_t  getNorm( int iSpecies);
     
@@ -96,10 +123,10 @@ class level
     std::vector<real_t> getNorm();
 
 
-
     private:
     geometry_t  _geom;
-    MultiFab _phi;
+    std::vector<MultiFab> _phi;
+
 
     BoxArray _ba;
     DistributionMapping _dm;
@@ -120,6 +147,7 @@ class realLevel : public level
     realLevel( geometry_t geom, BoxArray ba, DistributionMapping dm, int nSpecies=1 ) :  realLevel() { 
         define(geom,ba,dm,nSpecies);
      }
+
     
     realLevel() : level( ) {_nSpecies=0;} ;
 
@@ -130,7 +158,12 @@ class realLevel : public level
     {
         _nSpecies=nSpecies;
         level::define(geom,ba,dm,nSpecies);
-        _density.define(ba,dm,nSpecies,_nGrow);
+        _density.resize(_nSpecies);
+        for(int i=0;i<nSpecies;i++)
+        {
+            _density[i].define(ba,dm,1,_nGrow);
+        }
+
     }
 
 
@@ -151,26 +184,32 @@ class realLevel : public level
     virtual void clear() override
     {
         level::clear();
-        _density.clear();
+        for(int i=0;i<_nSpecies;i++)
+        {
+            _density[i].clear();
+        }
     }
 
-    virtual void updateDensity() override;
+    virtual void updateDensity(size_t i = 0 ) override;
 
-     virtual amrex::MultiFab & getDensity() override { return _density;}
-    const amrex::MultiFab & getDensity() const override  { return _density;}
+
+     virtual amrex::MultiFab & getDensity(size_t i=0 ) override { return _density[i];}
+    const amrex::MultiFab & getDensity( size_t i = 0 ) const override  { return _density[i];}
 
 
     private:
 
-    MultiFab _density;
+    std::vector<MultiFab> _density;
     int _nSpecies;
 };
+
+
 
 class complexLevel : public level
 {
     public:
 
-    complexLevel( geometry_t geom, BoxArray ba, DistributionMapping dm, int nSpecies=1 ) : _nSpecies(_nSpecies), level::level(geom,ba,dm,nSpecies*2) {_nSpecies=nSpecies;}
+    complexLevel( geometry_t geom, BoxArray ba, DistributionMapping dm, int nSpecies=1 ) : level() {define(geom,ba,dm,nSpecies); }
 
     complexLevel() : level( ) {_nSpecies=0;} ;
 
@@ -182,8 +221,16 @@ class complexLevel : public level
     {
         _nSpecies=nSpecies;
         level::define(geom,ba,dm,nSpecies*2);
-        _density.define(ba,dm,nSpecies,_nGrow);
-        _phase.define(ba,dm,nSpecies,_nGrow);
+        _density.resize(nSpecies);
+        _phase.resize(nSpecies);
+
+        for(int i=0;i<nSpecies;i++)
+        {
+            _density[i].define(ba,dm,1,_nGrow);
+            _phase[i].define(ba,dm,1,_nGrow);
+        }
+
+
     }
 
     virtual amrex::Vector<std::string> varnames() const override
@@ -203,17 +250,32 @@ class complexLevel : public level
 
     }
 
-    virtual amrex::MultiFab & getDensity() override { return _density;}
-    const amrex::MultiFab & getDensity() const override  { return _density;}
+    auto & getRealMultiFab(int iSpec) { return getMultiFab(2*iSpec) ;}
+    const auto & getRealMultiFab(int iSpec) const { return getMultiFab(2*iSpec) ;}
+
+    auto & getImagMultiFab(int iSpec) { return getMultiFab(2*iSpec + 1) ; }
+    const auto & getImagMultiFab(int iSpec) const { return getMultiFab(2*iSpec + 1) ; }
 
 
-    virtual void updateDensity() override;
+    
+   
+    
+
+    virtual amrex::MultiFab & getDensity(size_t i = 0 ) override { return _density[i];}
+    const amrex::MultiFab & getDensity(size_t i = 0 ) const override  { return _density[i];}
+
+
+
+
+
+    virtual void updateDensity(size_t i = 0 ) override;
+
 
 
     private:
 
-    MultiFab _density;
-    MultiFab _phase;
+    std::vector<MultiFab> _density;
+    std::vector<MultiFab> _phase;
     int _nSpecies;
 };
 
@@ -232,10 +294,10 @@ class baseLevels
     public :
 
 
-    virtual amrex::Vector< const amrex::MultiFab* > getMultiFabsPtr( ) const = 0 ;
+    virtual amrex::Vector< const amrex::MultiFab* > getMultiFabsPtr( size_t i = 0 ) const = 0 ;
     
 
-    virtual amrex::Vector< amrex::MultiFab* > getMultiFabsPtr( ) = 0;
+    virtual amrex::Vector< amrex::MultiFab* > getMultiFabsPtr( size_t i = 0 ) = 0;
 
     virtual amrex::Vector<amrex::BoxArray> getBoxArray( ) const = 0;
     
@@ -248,6 +310,9 @@ class baseLevels
 
 
     virtual int size() const = 0;
+
+    virtual int getNComponents() const = 0;
+
 
 };
 
@@ -271,9 +336,9 @@ class levels : public  baseLevels
 
     int size() const {return _finestLevel+1 ; }
 
-    amrex::Vector< const amrex::MultiFab* > getMultiFabsPtr( ) const ;
+    amrex::Vector< const amrex::MultiFab* > getMultiFabsPtr( size_t i = 0 ) const ;
 
-    amrex::Vector< amrex::MultiFab* > getMultiFabsPtr( );
+    amrex::Vector< amrex::MultiFab* > getMultiFabsPtr( size_t i = 0 );
 
     amrex::Vector<amrex::BoxArray> getBoxArray( ) const ;
     
@@ -293,8 +358,10 @@ class levels : public  baseLevels
     void save(const std::string & filename) const ;
 
     void normalize(real_t N, int c);
-    void normalize( const std::vector<real_t> & v);    
+    void normalize( const std::vector<real_t> & v);
 
+
+    int getNComponents() const override {return _levels[0]->getNComponents();}
 
     void updateDensity()
     {
@@ -323,9 +390,13 @@ class levels : public  baseLevels
 
 };
 
-
 using realLevels = levels<realLevel> ;
 using complexLevels = levels<complexLevel> ;
+
+
+template<>
+void levels<gp::realLevel>::normalize( real_t N , int c ) ;
+
 
 
 

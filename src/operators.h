@@ -17,10 +17,12 @@ namespace gp
         void define( const baseLevels & initLevels);
 
         void apply( baseLevels & levelsOld,  baseLevels &  levelsNew );
-        
+
         private:
 
-        std::shared_ptr<amrex::MLPoisson> ML;
+        std::vector<std::shared_ptr<amrex::MLPoisson> > ML;
+        
+
     };
 
 

@@ -8,131 +8,131 @@
             readelf -wl my_exefile | grep my_line_address'
     to find out the offset for that line.
 
- 0: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace20print_backtrace_infoEP8_IO_FILE+0x45) [0x7f6e6890f1a5]
+ 0: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace20print_backtrace_infoEP8_IO_FILE+0x45) [0x7f75f29f7985]
 
- 1: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace7handlerEi+0x362) [0x7f6e689110f2]
+ 1: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace7handlerEi+0x362) [0x7f75f29f98d2]
 
- 2: /lib/x86_64-linux-gnu/libc.so.6(+0x430c0) [0x7f6e772280c0]
+ 2: /lib/x86_64-linux-gnu/libc.so.6(+0x430c0) [0x7f76013110c0]
 
- 3: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp9realLevel13updateDensityEv+0x16f) [0x7f6e68818eff]
+ 3: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(H5P_close+0x10f) [0x7f75f23232cf]
 
- 4: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp5level7getNormEi+0x6f) [0x7f6e6881a67f]
+ 4: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(H5I_dec_ref+0x88) [0x7f75f22a4f78]
 
- 5: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp5level7getNormEv+0x8a) [0x7f6e6881a77a]
+ 5: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(H5D_close+0x48a) [0x7f75f21ec42a]
 
- 6: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x8ac75) [0x7f6e68804c75]
+ 6: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(H5VL__native_dataset_close+0xd) [0x7f75f2440d1d]
 
- 7: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x816a8) [0x7f6e687fb6a8]
+ 7: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(H5VL_dataset_close+0xa9) [0x7f75f242a3b9]
 
- 8: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x904b3) [0x7f6e6880a4b3]
+ 8: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(+0xdf41d) [0x7f75f21e741d]
 
- 9: python(+0x17ffa4) [0x55ba0f1d0fa4]
+ 9: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(H5I_dec_ref+0x88) [0x7f75f22a4f78]
 
-10: python(_PyObject_MakeTpCall+0x15e) [0x55ba0f19352e]
+10: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(H5I_dec_app_ref+0x2b) [0x7f75f22a503b]
 
-11: python(+0xaea74) [0x55ba0f0ffa74]
+11: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(H5I_dec_app_ref_always_close+0x31) [0x7f75f22a5111]
 
-12: python(+0x1052a5) [0x55ba0f1562a5]
+12: /home/luca/opt/hdf5/1.12.1/lib/libhdf5.so.200(H5Dclose+0x52) [0x7f75f21c0f62]
 
-13: python(+0x18f742) [0x55ba0f1e0742]
+13: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex37WriteMultiLevelPlotfileHDF5SingleDsetERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEiRKNS_6VectorIPKNS_8MultiFabESaISB_EEERKNS8_IS5_SaIS5_EEERKNS8_INS_8GeometryESaISK_EEEdRKNS8_IiSaIiEEERKNS8_INS_7IntVectESaIST_EEES7_S7_S7_S7_SJ_+0x112b) [0x7f75f2a4eedb]
 
-14: python(+0x1769d2) [0x55ba0f1c79d2]
+14: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZNK2gp6levelsINS_9realLevelEE4saveERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x336) [0x7f75f2904ab6]
 
-15: python(_PyObject_GenericGetAttrWithDict+0x27d) [0x55ba0f19ab2d]
+15: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x8371d) [0x7f75f28e671d]
 
-16: python(PyObject_GetAttr+0x46) [0x55ba0f18cb66]
+16: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x90ae3) [0x7f75f28f3ae3]
 
-17: python(_PyEval_EvalFrameDefault+0x5050) [0x55ba0f2370e0]
+17: python(+0x17ffa4) [0x5600197e1fa4]
 
-18: python(+0x18f742) [0x55ba0f1e0742]
+18: python(_PyObject_MakeTpCall+0x15e) [0x5600197a452e]
 
-19: python(+0x18fc9b) [0x55ba0f1e0c9b]
+19: python(+0xaea74) [0x560019710a74]
 
-20: python(+0x104425) [0x55ba0f155425]
+20: python(+0x1052a5) [0x5600197672a5]
 
-21: python(+0x18f742) [0x55ba0f1e0742]
+21: python(+0x18f742) [0x5600197f1742]
 
-22: python(+0x1049f3) [0x55ba0f1559f3]
+22: python(+0x1049f3) [0x5600197669f3]
 
-23: python(+0x18f742) [0x55ba0f1e0742]
+23: python(+0x18f742) [0x5600197f1742]
 
-24: python(+0x18fd4e) [0x55ba0f1e0d4e]
+24: python(+0x18fc9b) [0x5600197f1c9b]
 
-25: python(_PyObject_Call+0x20a) [0x55ba0f198faa]
+25: python(+0x104425) [0x560019766425]
 
-26: python(_PyEval_EvalFrameDefault+0x26e4) [0x55ba0f234774]
+26: python(+0x18f742) [0x5600197f1742]
 
-27: python(+0x18f742) [0x55ba0f1e0742]
+27: python(+0x1049f3) [0x5600197669f3]
 
-28: python(_PyObject_FastCallDictTstate+0x6a) [0x55ba0f1d105a]
+28: python(+0x18f742) [0x5600197f1742]
 
-29: python(+0x1981d5) [0x55ba0f1e91d5]
+29: python(+0x18fd4e) [0x5600197f1d4e]
 
-30: python(_PyObject_MakeTpCall+0x15e) [0x55ba0f19352e]
+30: python(_PyObject_Call+0x20a) [0x5600197a9faa]
 
-31: python(_PyEval_EvalFrameDefault+0x3bb) [0x55ba0f23244b]
+31: python(_PyEval_EvalFrameDefault+0x26e4) [0x560019845774]
 
-32: python(+0x18f742) [0x55ba0f1e0742]
+32: python(+0x18f742) [0x5600197f1742]
 
-33: python(+0x18fd4e) [0x55ba0f1e0d4e]
+33: python(_PyObject_FastCallDictTstate+0x6a) [0x5600197e205a]
 
-34: python(_PyObject_Call+0x20a) [0x55ba0f198faa]
+34: python(+0x1981d5) [0x5600197fa1d5]
 
-35: python(_PyEval_EvalFrameDefault+0x26e4) [0x55ba0f234774]
+35: python(_PyObject_MakeTpCall+0x15e) [0x5600197a452e]
 
-36: python(+0x18f742) [0x55ba0f1e0742]
+36: python(_PyEval_EvalFrameDefault+0x3bb) [0x56001984344b]
 
-37: python(_PyObject_FastCallDictTstate+0x6a) [0x55ba0f1d105a]
+37: python(+0x18f742) [0x5600197f1742]
 
-38: python(+0x1981d5) [0x55ba0f1e91d5]
+38: python(+0x18fd4e) [0x5600197f1d4e]
 
-39: python(_PyObject_MakeTpCall+0x15e) [0x55ba0f19352e]
+39: python(_PyObject_Call+0x20a) [0x5600197a9faa]
 
-40: python(_PyEval_EvalFrameDefault+0x3bb) [0x55ba0f23244b]
+40: python(_PyEval_EvalFrameDefault+0x26e4) [0x560019845774]
 
-41: python(+0x18f742) [0x55ba0f1e0742]
+41: python(+0x18f742) [0x5600197f1742]
 
-42: python(+0x18fd4e) [0x55ba0f1e0d4e]
+42: python(_PyObject_FastCallDictTstate+0x6a) [0x5600197e205a]
 
-43: python(_PyObject_Call+0x20a) [0x55ba0f198faa]
+43: python(+0x1981d5) [0x5600197fa1d5]
 
-44: python(_PyEval_EvalFrameDefault+0x26e4) [0x55ba0f234774]
+44: python(_PyObject_MakeTpCall+0x15e) [0x5600197a452e]
 
-45: python(+0x18f742) [0x55ba0f1e0742]
+45: python(_PyEval_EvalFrameDefault+0x3bb) [0x56001984344b]
 
-46: python(_PyObject_FastCallDictTstate+0x6a) [0x55ba0f1d105a]
+46: python(+0x18f742) [0x5600197f1742]
 
-47: python(+0x1981d5) [0x55ba0f1e91d5]
+47: python(+0x18fd4e) [0x5600197f1d4e]
 
-48: python(_PyObject_MakeTpCall+0x15e) [0x55ba0f19352e]
+48: python(_PyObject_Call+0x20a) [0x5600197a9faa]
 
-49: python(_PyEval_EvalFrameDefault+0x3bb) [0x55ba0f23244b]
+49: python(_PyEval_EvalFrameDefault+0x26e4) [0x560019845774]
 
-50: python(+0x18f742) [0x55ba0f1e0742]
+50: python(+0x18f742) [0x5600197f1742]
 
-51: python(+0x1049f3) [0x55ba0f1559f3]
+51: python(_PyObject_FastCallDictTstate+0x6a) [0x5600197e205a]
 
-52: python(+0x18f742) [0x55ba0f1e0742]
+52: python(+0x1981d5) [0x5600197fa1d5]
 
-53: python(+0x1049f3) [0x55ba0f1559f3]
+53: python(_PyObject_MakeTpCall+0x15e) [0x5600197a452e]
 
-54: python(+0x18f742) [0x55ba0f1e0742]
+54: python(_PyEval_EvalFrameDefault+0x3bb) [0x56001984344b]
 
-55: python(_PyObject_FastCallDictTstate+0x6a) [0x55ba0f1d105a]
+55: python(+0x18f742) [0x5600197f1742]
 
-56: python(+0x198029) [0x55ba0f1e9029]
+56: python(+0x1049f3) [0x5600197669f3]
 
-57: python(+0x15e311) [0x55ba0f1af311]
+57: python(+0x18f742) [0x5600197f1742]
 
-58: python(_PyObject_MakeTpCall+0x204) [0x55ba0f1935d4]
+58: python(+0x1049f3) [0x5600197669f3]
 
-59: python(_PyEval_EvalFrameDefault+0x4ce5) [0x55ba0f236d75]
+59: python(+0x18f742) [0x5600197f1742]
 
-60: python(+0x18f742) [0x55ba0f1e0742]
+60: python(_PyObject_FastCallDictTstate+0x6a) [0x5600197e205a]
 
-61: python(PyEval_EvalCode+0x88) [0x55ba0f1ef578]
+61: python(+0x198029) [0x5600197fa029]
 
-62: python(+0x2548fb) [0x55ba0f2a58fb]
+62: python(+0x15e311) [0x5600197c0311]
 
-63: python(+0x28d3a5) [0x55ba0f2de3a5]
+63: python(_PyObject_MakeTpCall+0x204) [0x5600197a45d4]
 

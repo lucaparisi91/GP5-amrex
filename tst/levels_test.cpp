@@ -4,9 +4,9 @@
 #include "../src/operators.h"
 #define TOL 1e-7
 
-void testGaussian(gp::realLevel & currentLevel, real_t alpha, int iComponent=0)
+void testGaussian(gp::level & currentLevel, real_t alpha, int iComponent=0)
 {
-    auto & phi = currentLevel.getMultiFab();
+    auto & phi = currentLevel.getMultiFab(iComponent);
     auto & geom = currentLevel.getGeometry();
 
     amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
@@ -31,7 +31,7 @@ void testGaussian(gp::realLevel & currentLevel, real_t alpha, int iComponent=0)
             #if AMREX_SPACE_DIM > 2
                 r2 += z*z;
             #endif
-                ASSERT_NEAR( exp( - alpha*r2) , phiArr(i,j,k,iComponent) , TOL);
+                ASSERT_NEAR( exp( - alpha*r2) , phiArr(i,j,k) , TOL);
 
 
             });
@@ -40,11 +40,11 @@ void testGaussian(gp::realLevel & currentLevel, real_t alpha, int iComponent=0)
 }
 
 
-void testGaussianLaplacian(gp::realLevel & currentLevel, real_t alpha, real_t tol)
+void testGaussianLaplacian(gp::level & currentLevel, real_t alpha, real_t tol,int iComponent=0)
 {
-    auto & phi = currentLevel.getMultiFab();
+    auto & phi = currentLevel.getMultiFab(iComponent);
     auto & geom = currentLevel.getGeometry();
-
+    
     amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
 
     for ( MFIter mfi(phi); mfi.isValid(); ++mfi )
@@ -86,13 +86,13 @@ TEST( levels, initGaussian )
     gp::realLevel level0(geo,ba,dm,2);
     real_t alpha=1./2;
 
+
     initGaussian(level0,alpha,0);
     testGaussian(level0,alpha,0);
 
     initGaussian(level0,alpha,1);
     testGaussian(level0,alpha,1);
 
-    
 }
 
 
@@ -109,7 +109,7 @@ TEST( level, saveGaussian )
 
     initGaussian(level0,alpha);
 
-    level0.saveHDF5("gauss");    
+    level0.saveHDF5("out/gauss");    
 
 }
 
@@ -143,11 +143,13 @@ TEST( complexLevel, laplacian )
     lap->define(levelsLeft);
     lap->apply(levelsLeft,levelsRight);
 
-    levelsLeft.save("gaussComplex");
-    levelsRight.save("lap-gaussComplex");
+    levelsLeft.save("out/gaussComplex");
+    levelsRight.save("out/lap-gaussComplex");
+
+    testGaussianLaplacian(levelsRight[0],alphaReal,8,0);
+    testGaussianLaplacian(levelsRight[0],alphaImag,8,1);
 
 }
-
 
 TEST( level, normalizationSingleLayer )
 {
@@ -174,6 +176,34 @@ TEST( level, normalizationSingleLayer )
 
 }
 
+
+TEST( complexLevel, normalizationSingleLayer )
+{
+    auto geo = gp::createGeometry( { AMREX_D_DECL(-1,-1,-1)},{AMREX_D_DECL(1,1, 1)},{AMREX_D_DECL(64,64,64 ) });
+    Box dom( geo.Domain());
+    BoxArray ba(dom);
+    DistributionMapping dm(ba);
+
+    auto level0=std::make_shared<gp::complexLevel>(geo,ba,dm);
+    level0->getMultiFab(0).mult(0);
+    level0->getMultiFab(1).mult(0);
+    
+    real_t alphaR=1./(2*0.1*0.1);
+    real_t alphaI=1./(2*0.2*0.2);
+
+    initGaussian(*level0,alphaR,0);
+    initGaussian(*level0,alphaI,1);
+
+
+    ASSERT_NEAR( level0->getNorm(0), 2*M_PI*( 0.2*0.2 + 0.1*0.1)/2,1e-9);
+
+    gp::levels<gp::complexLevel> levels{ {level0} };
+
+    levels.normalize(1,0);
+
+    ASSERT_NEAR( level0->getNorm(0), 1 ,1e-9);
+    
+}
 
 
 
@@ -250,7 +280,7 @@ TEST( levels, saveGaussian )
 
     levels.averageDown();
 
-    levels.save("gauss-2level");
+    levels.save("out/gauss-2level");
 
 }
 
@@ -273,7 +303,9 @@ TEST( levels, laplacian )
     testGaussianLaplacian(levelsRight[0],alpha,10);
     testGaussianLaplacian(levelsRight[1],alpha,2);
 
-    levelsRight.save("gauss-lap");
+    
+
+    levelsRight.save("out/gauss-lap");
 
 }
 
@@ -297,7 +329,7 @@ TEST(levels,gp)
     func.apply( levelsLeft, levelsRight );
 
     levelsRight.averageDown();
-    levelsRight.save("gpFunc");
+    levelsRight.save("out/gpFunc");
 
 }
 

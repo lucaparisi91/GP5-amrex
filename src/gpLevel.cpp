@@ -1,8 +1,9 @@
 #include "gpLevel.h"
+#include <filesystem>
 
 namespace gp
 {
-    
+
 geometry_t createGeometry( amrex::Array<real_t,AMREX_SPACEDIM> left,amrex::Array<real_t,AMREX_SPACEDIM> right,amrex::Array<size_t,AMREX_SPACEDIM> shape   )
 {
     geometry_t geom;
@@ -23,8 +24,9 @@ geometry_t createGeometry( amrex::Array<real_t,AMREX_SPACEDIM> left,amrex::Array
 
 void initGaussian(level & currentLevel, real_t alpha,int iComp )
 {
-    auto & phi = currentLevel.getMultiFab();
+    auto & phi = currentLevel.getMultiFab(iComp);
     auto & geom = currentLevel.getGeometry();
+
 
     amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
     for ( MFIter mfi(phi); mfi.isValid(); ++mfi )
@@ -47,7 +49,7 @@ void initGaussian(level & currentLevel, real_t alpha,int iComp )
             #if AMREX_SPACE_DIM > 2
                 r2 += z*z;
             #endif
-                phiArr(i,j,k,iComp)=exp( - alpha*r2);
+                phiArr(i,j,k)=exp( - alpha*r2);
                 
 
             });
@@ -55,20 +57,37 @@ void initGaussian(level & currentLevel, real_t alpha,int iComp )
         }
 }
 
-void level::saveHDF5( const std::string & filename) const
-{
 
+void level::saveHDF5( const std::string & filename, size_t i) const
+{
     WriteSingleLevelPlotfileHDF5(filename,
-                               getMultiFab(),
-                               varnames(),
+                               getMultiFab(i),
+                               {varnames()[i]},
                                getGeometry(),
                                getTime(),
                                0);
 }
 
-void realLevel::updateDensity()
+void level::saveHDF5( const std::string & dirname) const
 {
-    auto & phi = getMultiFab();
+    std::filesystem::create_directories(dirname);
+    fs::path dirPath(dirname);
+    const auto & names = varnames();
+    namespace fs = std::filesystem;
+    fs::create_directories(dirPath);
+    for(int i=0;i<getNComponents();i++)
+    {
+        fs::path filePath = dirPath / fs::path( names[i] ) ;
+        
+        saveHDF5( filePath.string(),i);
+    }
+
+}
+
+
+void realLevel::updateDensity(size_t i)
+{
+    auto & phi = getMultiFab(i);
     auto & geom = getGeometry();
 
     amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
@@ -77,13 +96,11 @@ void realLevel::updateDensity()
         {
             const Box& vbx = mfi.validbox();
             auto const& phiArr = phi.array(mfi);
-            auto const& densityArr = getDensity().array(mfi);
+            auto const& densityArr = getDensity(i).array(mfi);
 
             const auto left= geom.ProbDomain().lo();
             const auto right= geom.ProbDomain().hi();
 
-            for(int c=0;c<getNComponents() ;c++ )
-            {
                 amrex::ParallelFor(vbx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
@@ -96,60 +113,63 @@ void realLevel::updateDensity()
                 #if AMREX_SPACE_DIM > 2
                     r2 += z*z;
                 #endif
-                    densityArr(i,j,k)=phiArr(i,j,k,c) * phiArr(i,j,k,c);
+                    densityArr(i,j,k)=phiArr(i,j,k) * phiArr(i,j,k);
                 });
 
-            }
         }
 }
 
 
-void complexLevel::updateDensity()
+
+void complexLevel::updateDensity(  size_t i )
 {
-    auto & phi = getMultiFab();
+    auto & phiReal = getMultiFab(2*i);
+    auto & phiImag = getMultiFab(2*i+1);
+
     auto & geom = getGeometry();
-
     amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
-
-    for ( MFIter mfi(phi); mfi.isValid(); ++mfi )
+    {
+        for ( MFIter mfi(phiReal); mfi.isValid(); ++mfi )
         {
             const Box& vbx = mfi.validbox();
-            auto const& phiArr = phi.array(mfi);
-            auto const& densityArr = getDensity().array(mfi);
+            auto const& phiRealArr = phiReal.array(mfi);
+            auto const& phiImagArr = phiImag.array(mfi);
+
+            auto const& densityArr = getDensity(i).array(mfi);
 
             const auto left= geom.ProbDomain().lo();
             const auto right= geom.ProbDomain().hi();
 
-            for(int c=0;c<getNSpecies() ;c++ )
+            amrex::ParallelFor(vbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                amrex::ParallelFor(vbx,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    auto x = left[0] + (i + 0.5)* dx[0];
-                    auto y = left[1] + (j + 0.5 )* dx[1];
-                #if AMREX_SPACE_DIM > 2
-                    auto z = left[2] + k* dx[2];
-                #endif
-                    auto r2 = x*x + y*y;
-                #if AMREX_SPACE_DIM > 2
-                    r2 += z*z;
-                #endif
-                    densityArr(i,j,k,c)=phiArr(i,j,k,2*c) * phiArr(i,j,k,2*c) + phiArr(i,j,k,2*c+1) * phiArr(i,j,k,2*c+1) ;
-                });
+                auto x = left[0] + (i + 0.5)* dx[0];
+                auto y = left[1] + (j + 0.5 )* dx[1];
+            #if AMREX_SPACE_DIM > 2
+                auto z = left[2] + k* dx[2];
+            #endif
+                auto r2 = x*x + y*y;
+            #if AMREX_SPACE_DIM > 2
+                r2 += z*z;
+            #endif
+                densityArr(i,j,k)=phiRealArr(i,j,k) * phiRealArr(i,j,k) + phiImagArr(i,j,k) * phiImagArr(i,j,k) ;
+            });
 
-            }
         }
+    }
+
 }
 
 real_t level::getNorm( int iSpecies)
 {
 
-    updateDensity();
+    updateDensity(iSpecies);
 
     /* !!!!!   requires the density to have been updated */
-    auto & density = getDensity();
+    auto & density = getDensity(iSpecies);
 
-    auto norm = density.sum(iSpecies);
+    auto norm = density.sum();
+
 
 
     real_t dV=1;
@@ -194,13 +214,13 @@ levels<level_t>::levels( std::vector<std::shared_ptr<level_t> > levels_ ) : _lev
 
 
 template<class level_t>
-amrex::Vector< amrex::MultiFab* > levels<level_t>::getMultiFabsPtr( )
+amrex::Vector< amrex::MultiFab* > levels<level_t>::getMultiFabsPtr( size_t i  )
 {
     amrex::Vector<amrex::MultiFab*> fabs;
 
     for( int lev=0;lev<size();lev++)
     {        
-        fabs.push_back( &( _levels[lev]->getMultiFab()) );
+        fabs.push_back( &( _levels[lev]->getMultiFab(i)) );
     };
 
     return fabs;
@@ -208,13 +228,13 @@ amrex::Vector< amrex::MultiFab* > levels<level_t>::getMultiFabsPtr( )
 
 
 template<class level_t>
-amrex::Vector< const amrex::MultiFab* > levels<level_t>::getMultiFabsPtr( ) const
+amrex::Vector< const amrex::MultiFab* > levels<level_t>::getMultiFabsPtr( size_t i ) const
 {
     amrex::Vector< const amrex::MultiFab*> fabs;
 
     for( int lev=0;lev<size();lev++)
     {        
-        fabs.push_back( &( _levels[lev]->getMultiFab()) );
+        fabs.push_back( &( _levels[lev]->getMultiFab(i)) );
     };
 
     return fabs;
@@ -275,65 +295,107 @@ void levels<level_t>::averageDown ()
 {
     for (int lev = size()-2 ; lev >= 0; --lev)
     {
-        auto & phiCoarse = _levels[lev]->getMultiFab();
-        const auto & phiFine = _levels[lev + 1]->getMultiFab();
-        auto & geomCoarse = _levels[lev]->getGeometry();
-        const auto & geomFine = _levels[lev + 1]->getGeometry();
 
-        const auto & ref =  _refRatios[lev] ;
-        amrex::IntVect ratio{ AMREX_D_DECL(ref[0],ref[1],ref[2])} ;        
+        for(int c=0;c<_levels[lev]->getNComponents();c++)
+        {
+            auto & phiCoarse = _levels[lev]->getMultiFab(c);
+            const auto & phiFine = _levels[lev + 1]->getMultiFab(c);
+            auto & geomCoarse = _levels[lev]->getGeometry();
+            const auto & geomFine = _levels[lev + 1]->getGeometry();
 
-        amrex::average_down( phiFine, phiCoarse,
-                            geomFine, geomCoarse,
-                            0, _levels[0]->getNComponents() , ratio );
-        
-        auto & densityCoarse = _levels[lev]->getDensity();
-        const auto & densityFine = _levels[lev + 1]->getDensity();
+            const auto & ref =  _refRatios[lev] ;
+            amrex::IntVect ratio{ AMREX_D_DECL(ref[0],ref[1],ref[2])} ;        
 
-        amrex::average_down( densityFine, densityCoarse,
-                            geomFine, geomCoarse,
-                            0, _levels[0]->getNComponents() , ratio );
+            amrex::average_down( phiFine, phiCoarse,
+                                geomFine, geomCoarse,
+                                0, 1 , ratio );
+            
+            auto & densityCoarse = _levels[lev]->getDensity(c);
+            const auto & densityFine = _levels[lev + 1]->getDensity(c);
+
+            amrex::average_down( densityFine, densityCoarse,
+                                geomFine, geomCoarse,
+                                0, 1 , ratio );
+        }
     }
 
 }
 
 template<class level_t>
-void levels<level_t>::save(const std::string & filename) const 
+void levels<level_t>::save(const std::string & dirname) const 
 {
-    const auto& mf = getMultiFabsPtr( );
     auto geoms= getGeometry();
     amrex::Vector<int> iStep( _levels.size() , 0 );
-    
-    amrex::WriteMultiLevelPlotfileHDF5(filename,size(),mf,{"phi"},geoms,_levels[0]->getTime(),iStep, _refRatios );
+
+    const auto &  names = _levels[0]->varnames();
+    fs::create_directories(dirname);
+
+    for(int i=0;i<_levels[0]->getNComponents();i++)
+    {
+        const auto& mf = getMultiFabsPtr( i );
+
+        fs::path filePath = fs::path(dirname) / fs::path( names[i] ) ;
+
+        amrex::WriteMultiLevelPlotfileHDF5(filePath.string(),size(),mf,{names[i] },geoms,_levels[0]->getTime(),iStep, _refRatios );
+    }
 
 }
 
 
-template<class level_t>
-void levels<level_t>::normalize( real_t N , int c ) 
+template<>
+void levels<gp::realLevel>::normalize( real_t N , int c ) 
 {
-
     for(int lev=0;lev<size();lev++)
     {
-        _levels[lev]->updateDensity();
+        _levels[lev]->updateDensity(c);
     }
 
     averageDown();
 
-
     auto oldN = _levels[0]->getNorm(c);
-
 
     auto C = sqrt(N/oldN);
 
     for(int lev=0;lev<size();lev++)
     {
-        auto & phi = _levels[lev]->getMultiFab();
-        phi.mult( C, 0, _levels[lev]->getNComponents() );
+        
+        
+        auto & phi = _levels[lev]->getMultiFab(c);
+        phi.mult(C,0,1);
+
     }
 
+}
+
+template<>
+void levels<gp::complexLevel>::normalize( real_t N , int c ) 
+{
+    for(int lev=0;lev<size();lev++)
+    {
+        _levels[lev]->updateDensity(c);
+    }
+    
+    averageDown();
+
+    auto oldN = _levels[0]->getNorm(c);
+
+    auto C = sqrt(N/oldN);
+
+    for(int lev=0;lev<size();lev++)
+    {
+        auto & phiR = _levels[lev]->getMultiFab(c);
+        phiR.mult(C,0,1);
+        auto & phiI = _levels[lev]->getMultiFab(c+1);
+        phiI.mult(C,0,1);
+        
+    }
 
 }
+
+
+
+
+
 
 
 template<class level_t>

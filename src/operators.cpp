@@ -2,36 +2,41 @@
 namespace gp
 {
 
-
     void laplacianOperation::define( const baseLevels & initLevels )
     {
         auto geoms=initLevels.getGeometry();
         auto dms=initLevels.getDistributionMapping();
         auto bas=initLevels.getBoxArray();
+        ML.resize( initLevels.getNComponents() ); 
 
-        ML=std::make_shared<amrex::MLPoisson>();
-        ML->define( geoms,bas, dms  );
-        ML->setDomainBC( {AMREX_D_DECL(LinOpBCType::Periodic,LinOpBCType::Periodic,LinOpBCType::Periodic)} , { AMREX_D_DECL(LinOpBCType::Periodic,LinOpBCType::Periodic,LinOpBCType::Periodic)}   );
-        ML->setMaxOrder(3);
+        for(int c=0;c<initLevels.getNComponents();c++)
+        {
+            ML[c]=std::make_shared<amrex::MLPoisson>();
+            ML[c]->define( geoms,bas, dms  );
+            ML[c]->setDomainBC( {AMREX_D_DECL(LinOpBCType::Periodic,LinOpBCType::Periodic,LinOpBCType::Periodic)} , { AMREX_D_DECL(LinOpBCType::Periodic,LinOpBCType::Periodic,LinOpBCType::Periodic)}   );
+            ML[c]->setMaxOrder(3);
+        }
+
     };
-
-
 
     void laplacianOperation::apply(  baseLevels & levelsOld,  baseLevels &  levelsNew )
     {
-        assert(levelsOld.size()==levelsNew.size() );
-        auto src= levelsOld.getMultiFabsPtr();
-        auto dst = levelsNew.getMultiFabsPtr();
-
-
-        for(int lev=0;lev<src.size();lev++)
+        for(int i=0;i<levelsOld.getNComponents();i++)
         {
-            ML->setLevelBC(lev,src[lev]);
+            assert(levelsOld.size()==levelsNew.size() );
+            auto src= levelsOld.getMultiFabsPtr(i);
+            auto dst = levelsNew.getMultiFabsPtr(i);
+
+            for(int lev=0;lev<src.size();lev++)
+            {
+                ML[i]->setLevelBC(lev,src[lev]);
+            }
+
+            amrex::MLMG mlmg(*ML[i]);
+            mlmg.apply(dst,src);
         }
 
-        amrex::MLMG mlmg(*ML);
-        mlmg.apply(dst,src);
-
+       
     }
 
 
