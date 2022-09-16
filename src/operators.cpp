@@ -2,7 +2,7 @@
 namespace gp
 {
 
-    void laplacianOperation::define( const baseLevels & initLevels )
+    void laplacianOperation::define( const levels & initLevels )
     {
         auto geoms=initLevels.getGeometry();
         auto dms=initLevels.getDistributionMapping();
@@ -16,10 +16,10 @@ namespace gp
             ML[c]->setDomainBC( {AMREX_D_DECL(LinOpBCType::Periodic,LinOpBCType::Periodic,LinOpBCType::Periodic)} , { AMREX_D_DECL(LinOpBCType::Periodic,LinOpBCType::Periodic,LinOpBCType::Periodic)}   );
             ML[c]->setMaxOrder(3);
         }
-
     };
 
-    void laplacianOperation::apply(  baseLevels & levelsOld,  baseLevels &  levelsNew )
+
+    void laplacianOperation::apply(  levels & levelsOld,  levels &  levelsNew )
     {
         for(int i=0;i<levelsOld.getNComponents();i++)
         {
@@ -49,7 +49,7 @@ namespace gp
         }
     }
 
-    void trappedVortex::define( baseLevels & initLevels)
+    void trappedVortex::define( levels & initLevels)
     {
         _lap.define(initLevels);
     }
@@ -59,10 +59,16 @@ namespace gp
         _vortexCenters.push_back(x);
     }
 
-    void trappedVortex::apply( realLevels & fieldOld , realLevels & fieldNew)
+    void trappedVortex::apply( realWaveFunction & waveOld , realWaveFunction & waveNew )
     {
-        assert(fieldOld.getNSpecies()==1 );
-        assert(fieldNew.getNSpecies()==1 );
+        
+        auto & fieldOld = waveOld.getPhi();
+        auto & fieldNew = waveOld.getPhi();
+
+
+        assert(waveOld.getNSpecies()==1 );
+        assert(waveNew.getNSpecies()==1 );
+
 
         _lap.apply( fieldOld, fieldNew );
 
@@ -104,45 +110,55 @@ namespace gp
     }
 
 
-    void trappedVortex::apply( complexLevels & fieldOld , complexLevels & fieldNew)
+    void trappedVortex::apply( complexWaveFunction & waveOld , complexWaveFunction & waveNew )
     {
-        assert(fieldOld.getNSpecies()==1 );
-        assert(fieldNew.getNSpecies()==1 );
+        auto & fieldOld = waveOld.getPhi();
+        auto & fieldNew = waveNew.getPhi();
 
+        assert(waveOld.getNSpecies()==1 );
+        assert(waveNew.getNSpecies()==1 );
         _lap.apply( fieldOld, fieldNew );
+
 
         for (int lev = 0; lev < fieldOld.size(); lev++)
         {
-            auto & phiNew = fieldNew[lev].getMultiFab();
-            auto & phiOld = fieldOld[lev].getMultiFab();
+            auto & phiRealNew = fieldNew[lev].getMultiFab(0);
+            auto & phiImgNew = fieldNew[lev].getMultiFab(1);
+
+            auto & phiRealOld = fieldOld[lev].getMultiFab(0);
+            auto & phiImgOld = fieldOld[lev].getMultiFab(1);
+
             auto & geo= fieldNew[lev].getGeometry();
             const auto right= geo.ProbDomain().hi();
             const auto left= geo.ProbDomain().lo();
             auto  dx = geo.CellSizeArray();
 
-            for ( MFIter mfi(phiNew); mfi.isValid(); ++mfi )
+            for ( MFIter mfi(phiRealNew); mfi.isValid(); ++mfi )
             {
                 const Box& vbx = mfi.validbox();
-                auto const& phiNewArr = phiNew.array(mfi);
-                auto const& phiOldArr = phiOld.array(mfi);
+                auto const& phiRealNewArr = phiRealNew.array(mfi);
+                auto const& phiRealOldArr = phiRealOld.array(mfi);
+                
+                auto const& phiImgNewArr = phiImgNew.array(mfi);
+                auto const& phiImgOldArr = phiImgOld.array(mfi);
 
-                for (int c=0;c<fieldOld.getNSpecies();c++)
+
                 amrex::ParallelFor(vbx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     auto x = left[0] + (i + 0.5)* dx[0];
                     auto y = left[1] + (j + 0.5 )* dx[1];
 
+
                     auto V = ( _prefactor[0]*(x*x) + _prefactor[1]*y*y + _g*(
-                        phiOldArr(i,j,k,2*c)*phiOldArr(i,j,k,2*c) +
-                        phiOldArr(i,j,k,2*c + 1)*phiOldArr(i,j,k,2*c + 1) 
-                    
+                        phiRealOldArr(i,j,k)*phiRealOldArr(i,j,k) +
+                        phiImgOldArr(i,j,k)*phiImgOldArr(i,j,k) 
                         ) ); 
                     
-                    phiNewArr(i,j,k,2*c)= - 0.5* phiNewArr(i,j,k,2*c) + 
-                    V*phiOldArr(i,j,k,2*c)   ;
-                    phiNewArr(i,j,k,2*c + 1)= - 0.5* phiNewArr(i,j,k,2*c + 1) + 
-                    V*phiOldArr(i,j,k,2*c + 1) ;
+                    phiRealNewArr(i,j,k)= - 0.5* phiRealNewArr(i,j,k) + 
+                    V*phiRealOldArr(i,j,k) ;
+                    phiImgNewArr(i,j,k)= - 0.5* phiImgNewArr(i,j,k) + 
+                    V*phiImgOldArr(i,j,k) ;
 
 
                 });

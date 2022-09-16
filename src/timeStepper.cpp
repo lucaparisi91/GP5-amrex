@@ -1,13 +1,15 @@
 #include "timeStepper.h"
 
 
-
 namespace gp
 {
 
-    void euleroTimeStepper::advance( realLevels & oldLevels, realLevels & newLevels, real_t dt )
+    void euleroTimeStepper::advance( realWaveFunction & oldWave, realWaveFunction & newWave , real_t dt )
     {
-        _func->apply(oldLevels,newLevels);
+        auto & oldLevels = oldWave.getPhi();
+        auto & newLevels = newWave.getPhi();
+
+        _func->apply(oldWave,newWave);
         
         for(int lev=0;lev<oldLevels.size();lev++)
         {

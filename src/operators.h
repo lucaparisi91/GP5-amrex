@@ -14,9 +14,9 @@ namespace gp
         laplacianOperation() {}
         void define( const amrex::Vector<level> & levels);
 
-        void define( const baseLevels & initLevels);
+        void define( const levels & initLevels);
 
-        void apply( baseLevels & levelsOld,  baseLevels &  levelsNew );
+        void apply( levels & levelsOld,  levels &  levelsNew );
 
         private:
 
@@ -30,8 +30,8 @@ namespace gp
     {
         public:
 
-        virtual void apply( realLevels & levelsOld , realLevels & levelsNew)=0;
-        virtual void apply( complexLevels & levelsOld , complexLevels & levelsNew)=0;
+        virtual void apply( realWaveFunction & waveOld , realWaveFunction & waveNew)=0;
+        virtual void apply( complexWaveFunction & levelsOld , complexWaveFunction & levelsNew)=0;
 
     };
 
@@ -44,17 +44,15 @@ namespace gp
         public:
 
         trappedVortex(real_t g , std::array<real_t,AMREX_SPACEDIM> omega);
-
         void addVortex( const std::array<real_t,AMREX_SPACEDIM> & x);
 
 
-        void apply( realLevels & levelsOld , realLevels & levelsNew);
-        void apply( complexLevels & levelsOld , complexLevels & levelsNew);
+        void apply( realWaveFunction & levelsOld , realWaveFunction & levelsNew);
+        void apply( complexWaveFunction & levelsOld  , complexWaveFunction & levelsNew );
 
 
-        void define( baseLevels & initLevels);
+        void define( levels & initLevels);
 
-        
         private:
 
         real_t _g;

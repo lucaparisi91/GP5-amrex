@@ -4,32 +4,33 @@
 namespace gp
 {
 
-geometry_t createGeometry( amrex::Array<real_t,AMREX_SPACEDIM> left,amrex::Array<real_t,AMREX_SPACEDIM> right,amrex::Array<size_t,AMREX_SPACEDIM> shape   )
-{
-    geometry_t geom;
-    Vector<int> is_periodic(AMREX_SPACEDIM,0);
-    for (int idim=0; idim < AMREX_SPACEDIM; ++idim) {
-            is_periodic[idim] = 1;
-        }
-    IntVect dom_lo(AMREX_D_DECL(       0,        0,        0));
-    IntVect dom_hi(AMREX_D_DECL( shape[0]-1, shape[1]-1, shape[2]-1));
-    Box domain(dom_lo, dom_hi);
+    geometry_t createGeometry( amrex::Array<real_t,AMREX_SPACEDIM> left,amrex::Array<real_t,AMREX_SPACEDIM> right,amrex::Array<size_t,AMREX_SPACEDIM> shape   )
+    {
+        geometry_t geom;
+        Vector<int> is_periodic(AMREX_SPACEDIM,0);
+        for (int idim=0; idim < AMREX_SPACEDIM; ++idim) {
+                is_periodic[idim] = 1;
+            }
+        IntVect dom_lo(AMREX_D_DECL(       0,        0,        0));
+        IntVect dom_hi(AMREX_D_DECL( shape[0]-1, shape[1]-1, shape[2]-1));
+        Box domain(dom_lo, dom_hi);
 
-    amrex::RealBox real_box({AMREX_D_DECL(left[0],left[1],left[2])},
-                         {AMREX_D_DECL( right[0], right[1], right[2])});
+        amrex::RealBox real_box({AMREX_D_DECL(left[0],left[1],left[2])},
+                            {AMREX_D_DECL( right[0], right[1], right[2])});
 
-    geom.define(domain,&real_box,amrex::CoordSys::cartesian,is_periodic.data() );
-    return geom;
-};
-
-void initGaussian(level & currentLevel, real_t alpha,int iComp )
-{
-    auto & phi = currentLevel.getMultiFab(iComp);
-    auto & geom = currentLevel.getGeometry();
+        geom.define(domain,&real_box,amrex::CoordSys::cartesian,is_periodic.data() );
+        return geom;
+    };
 
 
-    amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
-    for ( MFIter mfi(phi); mfi.isValid(); ++mfi )
+    void initGaussian(level & currentLevel, real_t alpha,int iComp )
+    {
+        auto & phi = currentLevel.getMultiFab(iComp);
+        auto & geom = currentLevel.getGeometry();
+
+
+        amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
+        for ( MFIter mfi(phi); mfi.isValid(); ++mfi )
         {
             
             const Box& vbx = mfi.validbox();
@@ -55,73 +56,115 @@ void initGaussian(level & currentLevel, real_t alpha,int iComp )
             });
         
         }
-}
-
-
-void level::saveHDF5( const std::string & filename, size_t i) const
-{
-    WriteSingleLevelPlotfileHDF5(filename,
-                               getMultiFab(i),
-                               {varnames()[i]},
-                               getGeometry(),
-                               getTime(),
-                               0);
-}
-
-void level::saveHDF5( const std::string & dirname) const
-{
-    std::filesystem::create_directories(dirname);
-    fs::path dirPath(dirname);
-    const auto & names = varnames();
-    namespace fs = std::filesystem;
-    fs::create_directories(dirPath);
-    for(int i=0;i<getNComponents();i++)
-    {
-        fs::path filePath = dirPath / fs::path( names[i] ) ;
-        
-        saveHDF5( filePath.string(),i);
     }
 
-}
 
+    void level::saveHDF5( const std::string & filename, size_t i) const
+    {
+        WriteSingleLevelPlotfileHDF5(filename,
+                                getMultiFab(i),
+                                {getNames()[i]},
+                                getGeometry(),
+                                getTime(),
+                                0);
+    }
 
-void realLevel::updateDensity(size_t i)
-{
-    auto & phi = getMultiFab(i);
-    auto & geom = getGeometry();
-
-    amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
-
-    for ( MFIter mfi(phi); mfi.isValid(); ++mfi )
+    void level::saveHDF5( const std::string & dirname) const
+    {
+        std::filesystem::create_directories(dirname);
+        fs::path dirPath(dirname);
+        const auto & names = getNames();
+        namespace fs = std::filesystem;
+        fs::create_directories(dirPath);
+        for(int i=0;i<getNComponents();i++)
         {
-            const Box& vbx = mfi.validbox();
-            auto const& phiArr = phi.array(mfi);
-            auto const& densityArr = getDensity(i).array(mfi);
-
-            const auto left= geom.ProbDomain().lo();
-            const auto right= geom.ProbDomain().hi();
-
-                amrex::ParallelFor(vbx,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    auto x = left[0] + (i + 0.5)* dx[0];
-                    auto y = left[1] + (j + 0.5 )* dx[1];
-                #if AMREX_SPACE_DIM > 2
-                    auto z = left[2] + k* dx[2];
-                #endif
-                    auto r2 = x*x + y*y;
-                #if AMREX_SPACE_DIM > 2
-                    r2 += z*z;
-                #endif
-                    densityArr(i,j,k)=phiArr(i,j,k) * phiArr(i,j,k);
-                });
-
+            fs::path filePath = dirPath / fs::path( names[i] ) ;
+            
+            saveHDF5( filePath.string(),i);
         }
-}
+
+    }
+
+    void level::define( const level & level2)
+    {
+        define(level2.getGeometry() , level2.getBoxArray(),getDistributionMap() , level2.getNComponents() );
+        setNames(level2.getNames() );
 
 
+    }
 
-void complexLevel::updateDensity(  size_t i )
+
+    void levels::define(const levels & levels2)
+    {
+        std::vector<std::shared_ptr<level> > newLevels;
+        newLevels.resize(levels2.size() );
+        for(int lev=0; lev< levels2.size( ) ; lev++)
+        {
+            newLevels[lev]=std::make_shared<level>();
+            newLevels[lev]->define(levels2[lev]);
+        }
+
+        define(newLevels);
+
+
+    }
+
+    realWaveFunction::realWaveFunction( std::shared_ptr<levels> waveLevels ) : _phi(waveLevels)
+    {
+        _density=std::make_shared<levels>();
+        const auto & _levels = *_phi ;
+        _density->define( _levels );
+        
+    }
+
+
+    void realWaveFunction::updateDensity( int c)
+    {
+        auto & phi = getPhi();
+        auto & density = getDensity();
+        
+        for(int lev=0;lev<phi.size();lev++)
+        {
+            gp::updateDensity( phi[lev],density[lev] , c );
+        }
+        density.averageDown();
+        
+
+
+    }
+
+    void updateDensity( level & phiLevel , level & densityLevel , int c  )
+    {
+        auto & phi = phiLevel.getMultiFab(c);
+        auto & density = densityLevel.getMultiFab(c);
+
+        auto & geom = phiLevel.getGeometry();
+
+
+        amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
+
+        for ( MFIter mfi(phi); mfi.isValid(); ++mfi )
+            {
+                const Box& vbx = mfi.validbox();
+                auto const& phiArr = phi.array(mfi);
+                auto const& densityArr = density.array(mfi);
+
+                const auto left= geom.ProbDomain().lo();
+                const auto right= geom.ProbDomain().hi();
+
+                    amrex::ParallelFor(vbx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        //phiArr(i,j,k)=0;
+                        //densityArr(i,j,k)=phiArr(i,j,k) * phiArr(i,j,k);
+                    });
+
+            }
+    }
+
+/*
+
+void complexWavefunction::updateDensity(  size_t i )
 {
     auto & phiReal = getMultiFab(2*i);
     auto & phiImag = getMultiFab(2*i+1);
@@ -160,12 +203,12 @@ void complexLevel::updateDensity(  size_t i )
 
 }
 
-real_t level::getNorm( int iSpecies)
+real_t complexWavefunction::getNorm( int iSpecies)
 {
 
     updateDensity(iSpecies);
 
-    /* !!!!!   requires the density to have been updated */
+    // !!!!!   requires the density to have been updated 
     auto & density = getDensity(iSpecies);
 
     auto norm = density.sum();
@@ -184,11 +227,13 @@ real_t level::getNorm( int iSpecies)
 };
 
 
+ */
 
 
-template<class level_t >
-levels<level_t>::levels( std::vector<std::shared_ptr<level_t> > levels_ ) : _levels(levels_)   {
 
+void levels::define( std::vector<std::shared_ptr<level_t> > levels_ ) {
+
+    _levels=levels_;
     _finestLevel=_levels.size() - 1;
     _refRatios.resize(  _levels.size() - 1 );
     for(int lev=0;lev<_finestLevel;lev++)
@@ -211,10 +256,7 @@ levels<level_t>::levels( std::vector<std::shared_ptr<level_t> > levels_ ) : _lev
     }
 }
 
-
-
-template<class level_t>
-amrex::Vector< amrex::MultiFab* > levels<level_t>::getMultiFabsPtr( size_t i  )
+amrex::Vector< amrex::MultiFab* > levels::getMultiFabsPtr( size_t i  )
 {
     amrex::Vector<amrex::MultiFab*> fabs;
 
@@ -227,8 +269,7 @@ amrex::Vector< amrex::MultiFab* > levels<level_t>::getMultiFabsPtr( size_t i  )
 }
 
 
-template<class level_t>
-amrex::Vector< const amrex::MultiFab* > levels<level_t>::getMultiFabsPtr( size_t i ) const
+amrex::Vector< const amrex::MultiFab* > levels::getMultiFabsPtr( size_t i ) const
 {
     amrex::Vector< const amrex::MultiFab*> fabs;
 
@@ -241,8 +282,8 @@ amrex::Vector< const amrex::MultiFab* > levels<level_t>::getMultiFabsPtr( size_t
 };
 
 
-template<class level_t>
-amrex::Vector<amrex::BoxArray> levels<level_t >::getBoxArray( ) const
+
+amrex::Vector< amrex::BoxArray > levels::getBoxArray( ) const
 {
     amrex::Vector< amrex::BoxArray> bas;
 
@@ -255,8 +296,7 @@ amrex::Vector<amrex::BoxArray> levels<level_t >::getBoxArray( ) const
 };
 
 
-template<class level_t>
-amrex::Vector<amrex::DistributionMapping> levels< level_t >::getDistributionMapping( ) const
+amrex::Vector<amrex::DistributionMapping> levels::getDistributionMapping( ) const
 {
     amrex::Vector< amrex::DistributionMapping> dms;
     for( int lev=0;lev<size();lev++)
@@ -267,8 +307,8 @@ amrex::Vector<amrex::DistributionMapping> levels< level_t >::getDistributionMapp
     return dms;
 };
 
-template<class level_t >
-amrex::Vector< amrex::Geometry > levels<level_t>::getGeometry( ) const
+
+amrex::Vector< amrex::Geometry > levels::getGeometry( ) const
 {
     amrex::Vector< amrex::Geometry> geoms;
     for( int lev=0;lev<size();lev++)
@@ -278,8 +318,7 @@ amrex::Vector< amrex::Geometry > levels<level_t>::getGeometry( ) const
     return geoms;
 };
 
-template<class level_t>
-amrex::Vector< real_t >  levels<level_t>::getTimes( ) const
+amrex::Vector< real_t >  levels::getTimes( ) const
 {
     amrex::Vector< real_t> times;
     for( int lev=0; lev<size(); lev++)
@@ -290,12 +329,11 @@ amrex::Vector< real_t >  levels<level_t>::getTimes( ) const
 };
 
 
-template<class level_t>
-void levels<level_t>::averageDown ()
+void levels::averageDown()
 {
+
     for (int lev = size()-2 ; lev >= 0; --lev)
     {
-
         for(int c=0;c<_levels[lev]->getNComponents();c++)
         {
             auto & phiCoarse = _levels[lev]->getMultiFab(c);
@@ -310,40 +348,36 @@ void levels<level_t>::averageDown ()
                                 geomFine, geomCoarse,
                                 0, 1 , ratio );
             
-            auto & densityCoarse = _levels[lev]->getDensity(c);
-            const auto & densityFine = _levels[lev + 1]->getDensity(c);
-
-            amrex::average_down( densityFine, densityCoarse,
-                                geomFine, geomCoarse,
-                                0, 1 , ratio );
         }
     }
 
 }
 
-template<class level_t>
-void levels<level_t>::save(const std::string & dirname) const 
+
+
+
+
+void levels::save(const std::string & dirname) const 
 {
-    auto geoms= getGeometry();
+     auto geoms= getGeometry();
     amrex::Vector<int> iStep( _levels.size() , 0 );
 
-    const auto &  names = _levels[0]->varnames();
+    const auto &  names = _levels[0]->getNames();
     fs::create_directories(dirname);
-
-    for(int i=0;i<_levels[0]->getNComponents();i++)
+ 
+     for(int i=0;i<_levels[0]->getNComponents();i++)
     {
         const auto& mf = getMultiFabsPtr( i );
 
         fs::path filePath = fs::path(dirname) / fs::path( names[i] ) ;
 
         amrex::WriteMultiLevelPlotfileHDF5(filePath.string(),size(),mf,{names[i] },geoms,_levels[0]->getTime(),iStep, _refRatios );
-    }
+    } 
 
-}
+} 
 
-
-template<>
-void levels<gp::realLevel>::normalize( real_t N , int c ) 
+/* 
+void realWavefunction:normalize( real_t N , int c ) 
 {
     for(int lev=0;lev<size();lev++)
     {
@@ -367,14 +401,15 @@ void levels<gp::realLevel>::normalize( real_t N , int c )
 
 }
 
-template<>
-void levels<gp::complexLevel>::normalize( real_t N , int c ) 
+
+
+void complexWavefunction::normalize( real_t N , int c ) 
 {
     for(int lev=0;lev<size();lev++)
     {
         _levels[lev]->updateDensity(c);
     }
-    
+
     averageDown();
 
     auto oldN = _levels[0]->getNorm(c);
@@ -393,36 +428,7 @@ void levels<gp::complexLevel>::normalize( real_t N , int c )
 }
 
 
-
-
-
-
-
-template<class level_t>
-void levels<level_t>::normalize( const std::vector<real_t>  & N) 
-{
-    assert( N.size() == getNSpecies() );
-
-    for(int c=0;c<getNSpecies();c++)
-    {
-        normalize(N[c],c);
-    }
-}
-
-std::vector<real_t> level::getNorm()
-{
-    std::vector<real_t> norms( getNSpecies());
-    for( int c=0; c<getNSpecies(); c++ )
-    {
-        norms[c]=getNorm(c);
-    }
-    return norms;
-
-}
-
-
-template class levels<realLevel>;
-template class levels<complexLevel>;
+*/
 
 
 }

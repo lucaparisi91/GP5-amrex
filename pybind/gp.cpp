@@ -101,7 +101,8 @@ namespace pyInterfaceAmreX
         amrex::Box _box;
     };
 
-    template<class level_t>
+    /*
+
     class level
     {
         public:
@@ -229,11 +230,8 @@ namespace pyInterfaceAmreX
     };
 
 
-    using realLevel=level<gp::realLevel>;
-    using complexLevel=level<gp::complexLevel>;
 
-
-    template<class level_t>
+    
     class field
     {
         public:
@@ -407,5 +405,9 @@ PYBIND11_MODULE(gpAmreX, m) {
  
 
 
-  ;           
+  ;         
+
+
+*/
+
 }
