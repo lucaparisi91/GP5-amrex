@@ -61,15 +61,13 @@ namespace gp
 
     void trappedVortex::apply( realWaveFunction & waveOld , realWaveFunction & waveNew )
     {
-        
-        auto & fieldOld = waveOld.getPhi();
-        auto & fieldNew = waveOld.getPhi();
 
+        auto & fieldOld = waveOld.getPhi();
+        auto & fieldNew = waveNew.getPhi();
 
         assert(waveOld.getNSpecies()==1 );
         assert(waveNew.getNSpecies()==1 );
-
-
+        
         _lap.apply( fieldOld, fieldNew );
 
         for (int lev = 0; lev < fieldOld.size(); lev++)
@@ -105,13 +103,12 @@ namespace gp
                 });
             }
         }
-
-
     }
 
 
     void trappedVortex::apply( complexWaveFunction & waveOld , complexWaveFunction & waveNew )
     {
+
         auto & fieldOld = waveOld.getPhi();
         auto & fieldNew = waveNew.getPhi();
 
@@ -119,6 +116,7 @@ namespace gp
         assert(waveNew.getNSpecies()==1 );
         _lap.apply( fieldOld, fieldNew );
 
+        
 
         for (int lev = 0; lev < fieldOld.size(); lev++)
         {
@@ -149,12 +147,23 @@ namespace gp
                     auto x = left[0] + (i + 0.5)* dx[0];
                     auto y = left[1] + (j + 0.5 )* dx[1];
 
+                    auto V = ( _prefactor[0]*(x*x) + _prefactor[1]*y*y 
+                        + _g*(
+                            phiRealOldArr(i,j,k)*phiRealOldArr(i,j,k) +
+                            phiImgOldArr(i,j,k)*phiImgOldArr(i,j,k) 
+                            ) 
+                             );
 
-                    auto V = ( _prefactor[0]*(x*x) + _prefactor[1]*y*y + _g*(
-                        phiRealOldArr(i,j,k)*phiRealOldArr(i,j,k) +
-                        phiImgOldArr(i,j,k)*phiImgOldArr(i,j,k) 
-                        ) ); 
-                    
+ 
+                    for(int iV=0;iV<_vortexCenters.size();iV++)
+                    {
+                        const auto & x0 = _vortexCenters[iV];
+
+                        auto r2 = (x - x0[0] )*(x-x0[0] ) + (y-x0[1])*(y-x0[1]) ;
+                        V+=0.5/( r2 ) ;
+                    }
+
+
                     phiRealNewArr(i,j,k)= - 0.5* phiRealNewArr(i,j,k) + 
                     V*phiRealOldArr(i,j,k) ;
                     phiImgNewArr(i,j,k)= - 0.5* phiImgNewArr(i,j,k) + 
@@ -164,8 +173,7 @@ namespace gp
                 });
             }
         }
-
-
+        
     }
 
 }

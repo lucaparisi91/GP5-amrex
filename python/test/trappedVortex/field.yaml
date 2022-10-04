@@ -1,0 +1,31 @@
+levels:
+- geo:
+    domain: &id001
+    - - -1
+      - 1
+    - - -1
+      - 1
+    shape:
+    - 64
+    - 64
+  boxes:
+  - extent:
+    - - 0
+      - 63
+    - - 0
+      - 63
+  dtype: real
+  nComponents: 1
+- geo:
+    domain: *id001
+    shape:
+    - 128
+    - 128
+  boxes:
+  - extent:
+    - - 44
+      - 89
+    - - 44
+      - 89
+  dtype: real
+  nComponents: 1

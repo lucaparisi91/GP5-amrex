@@ -35,26 +35,17 @@ namespace gp{
         void define(const level & level2);
 
 
-        virtual void define( geometry_t geom, BoxArray ba, DistributionMapping dm , int nComponents = 1 )
+        virtual void define( geometry_t geom, BoxArray ba, DistributionMapping  dm , int nComponents = 1 )
         {
-            _nComponents=nComponents;
+            _geom=geom;_ba=ba;_dm=dm;
+
+            resizeNComponents(nComponents);
 
             
-            _geom=geom;_ba=ba;_dm=dm;
-            _phi.resize( nComponents);
-            for(int i=0;i<nComponents;i++)
-            {
-                _phi[i].define(_ba,_dm,1,_nGrow);
-            }
-
-
-            _names.resize(nComponents);
-            for(int i=0;i<_names.size();i++)
-            {
-                _names[i]="phi" + std::to_string(i);
-            }
 
         }
+
+        void resizeNComponents(int nComponents);
 
         auto &     getMultiFabs() {return _phi;};
         const auto &     getMultiFabs() const  {return _phi;};
@@ -65,8 +56,6 @@ namespace gp{
 
         auto & operator[](size_t i ) {return getMultiFab(i);}
         const auto & operator[](size_t i ) const {return getMultiFab(i);}
-
-
 
         auto &  getGeometry() {return _geom; };
         const auto &  getGeometry() const {return _geom; };
@@ -110,10 +99,16 @@ namespace gp{
 
         const auto & getNames() const {return _names; }
 
+
+         void swapComponents(int i1, int i2)
+        {
+            std::swap(_phi[i1] , _phi[i2] );
+        }
+
+
         private:
         geometry_t  _geom;
         std::vector<MultiFab> _phi;
-
 
         BoxArray _ba;
         DistributionMapping _dm;
@@ -133,7 +128,6 @@ geometry_t createGeometry( amrex::Array<real_t,AMREX_SPACEDIM> left,amrex::Array
 
 void initGaussian( level & currentLevel, real_t alpha, int iComp=0);
 
-
 class levels
 {   
     
@@ -142,11 +136,14 @@ class levels
 
     levels() : _finestLevel(-1) {}
 
-    
     levels( std::vector<std::shared_ptr<level_t> > levels_)
     {
         define(levels_);
     }
+
+
+
+    void resizeNComponents(int nComponents);
 
     void define(const levels & levels2);
     void define( std::vector<std::shared_ptr<level_t> > levels_);
@@ -168,9 +165,7 @@ class levels
 
     amrex::Vector<amrex::Geometry> getGeometry() const ;
 
-    amrex::Vector< real_t > getTimes() const ;
-
-
+    amrex::Vector< real_t > getTimes() const ;    
 
     void averageDown() ;
 
@@ -184,12 +179,13 @@ class levels
 
     int getNComponents() const {return _levels[0]->getNComponents();}
 
-
-
     auto getTime(){return _levels[0]->getTime();}
 
-    void define(levels & levels2);
+    void increaseTime(real_t dt );
 
+
+
+   
     private:
 
 
@@ -202,18 +198,20 @@ class levels
 
 
 void updateDensity(level & phiLevel, level & densityLevel , int c);
+void updateDensity(level & phiLevel, level & densityLevel , int c1 , int c2, int c3);
 
 
-class realWaveFunction
+
+class waveFunction
 {
     public:
 
+    auto getNSpecies() {return _density->getNComponents(); }
 
-    realWaveFunction(  std::shared_ptr<levels> waveLevels );
-    
+    auto getNComponents() {return _phi->getNComponents(); }
 
 
-    void normalize(real_t N, int c);
+    real_t getNorm( int c);
 
     const auto & getPhi() const {return *_phi ; }
     const auto & getDensity() const  {return *_density ; }
@@ -221,23 +219,16 @@ class realWaveFunction
     auto & getPhi() {return *_phi ; }
     auto & getDensity() {return *_density ; }
 
-    void updateDensity( int );
-
-
-    void getNorm( int c);
-
-    void renormalize(real_t N2 ); // does not update the density
-
-    auto getNSpecies() {return _phi->getNComponents(); }
-
 
     void updateDensity();
+    virtual void normalize(real_t N , int c)=0;
+    virtual void updateDensity( int c )=0;
 
+    std::vector<real_t> getNorm();
 
-    
+    auto getTime() const {return (*_phi)[0].getTime()  ; }
 
-
-    private:
+    protected:
 
     std::shared_ptr<levels> _phi;
     std::shared_ptr<levels> _density;
@@ -245,29 +236,48 @@ class realWaveFunction
 
 
 
-class complexWaveFunction 
+class realWaveFunction : public waveFunction
 {
     public:
 
+    realWaveFunction(){}
 
-    void normalize(real_t N, int c);
 
-    auto & getPhi() {return _phi ; }
-    auto & getDensity() {return _density ; }
+    realWaveFunction(  std::shared_ptr<levels> waveLevels );
 
-    const auto & getPhi() const {return _phi ; }
-    const auto & getDensity() const  {return _density ; }
 
-    auto getNSpecies() {return _phi.size()/2 ;}
-    
+    void define( const realWaveFunction & wave );
+
+
+    virtual void updateDensity( int ) override;
+
+    virtual void normalize(real_t N,int c) override;
+
+
+    private:
+   
+};
+
+
+class complexWaveFunction : public waveFunction
+{
+    public:
+
+    complexWaveFunction(){}
+
+    complexWaveFunction(  std::shared_ptr<levels> waveLevels );
+
+    virtual void updateDensity( int ) override;
+
+    virtual void normalize(real_t N,int c) override;
+
+    void define( complexWaveFunction & wave );
+
 
     private:
 
-    levels _phi;
-    levels _density;
     levels _phase;
 };
-
 
 
 }

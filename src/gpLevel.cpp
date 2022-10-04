@@ -4,6 +4,34 @@
 namespace gp
 {
 
+
+    void level::resizeNComponents(int nComponents)
+    {
+        _nComponents=nComponents;
+        auto oldSize=_phi.size();
+
+        _phi.resize(nComponents);
+        
+        for(int i=oldSize;i<nComponents ; i++)
+        {
+             _phi[i].define(_ba,_dm,1,_nGrow);
+        }
+
+        _names.resize(nComponents);
+        for(int i=oldSize;i<_names.size();i++)
+        {
+            _names[i]="phi" + std::to_string(i);
+        }
+
+
+    }
+
+
+
+
+
+
+
     geometry_t createGeometry( amrex::Array<real_t,AMREX_SPACEDIM> left,amrex::Array<real_t,AMREX_SPACEDIM> right,amrex::Array<size_t,AMREX_SPACEDIM> shape   )
     {
         geometry_t geom;
@@ -85,11 +113,11 @@ namespace gp
 
     }
 
+
     void level::define( const level & level2)
     {
-        define(level2.getGeometry() , level2.getBoxArray(),getDistributionMap() , level2.getNComponents() );
+        define(level2.getGeometry() , level2.getBoxArray(),level2.getDistributionMap() , level2.getNComponents() );
         setNames(level2.getNames() );
-
 
     }
 
@@ -103,34 +131,89 @@ namespace gp
             newLevels[lev]=std::make_shared<level>();
             newLevels[lev]->define(levels2[lev]);
         }
-
         define(newLevels);
+    }
 
+
+    void realWaveFunction::define( const realWaveFunction & wave )
+    {
+        _phi=std::make_shared<levels>();
+        _density=std::make_shared<levels>();
+
+        _phi->define(wave.getPhi() );
+
+        const auto & _levels = *_phi ;
+        _density->define( _levels );
 
     }
 
-    realWaveFunction::realWaveFunction( std::shared_ptr<levels> waveLevels ) : _phi(waveLevels)
+
+
+    realWaveFunction::realWaveFunction( std::shared_ptr<levels> waveLevels )
     {
+        _phi=waveLevels;
         _density=std::make_shared<levels>();
         const auto & _levels = *_phi ;
         _density->define( _levels );
-        
     }
 
+    void complexWaveFunction::define( complexWaveFunction & wave )
+    {
+        _phi=std::make_shared<levels>();
+        _density=std::make_shared<levels>();
+        _phi->define(wave.getPhi());
+
+        const auto & _levels = *_phi ;
+        
+        _density->define( _levels );
+        
+
+        _density->resizeNComponents(_phi->getNComponents()/2 );
+
+        assert(_density->getNComponents()==1);
+    }
+
+
+    complexWaveFunction::complexWaveFunction( std::shared_ptr<levels> waveLevels )
+    {
+        _phi=waveLevels;
+        _density=std::make_shared<levels>();
+        const auto & _levels = *_phi ;
+        _density->define( _levels );
+        if ( _phi->getNComponents() % 2 != 0)
+        {
+            throw std::runtime_error("Number of level component should be even.");
+        }
+        assert(_phi->getNComponents()==2);
+
+        _density->resizeNComponents(_phi->getNComponents()/2 );
+
+        assert(_density->getNComponents()==1);
+    }
 
     void realWaveFunction::updateDensity( int c)
     {
         auto & phi = getPhi();
         auto & density = getDensity();
-        
+
         for(int lev=0;lev<phi.size();lev++)
         {
             gp::updateDensity( phi[lev],density[lev] , c );
         }
         density.averageDown();
-        
+    }
 
 
+    void complexWaveFunction::updateDensity( int c)
+    {
+        auto & phi = getPhi();
+        auto & density = getDensity();
+
+        for(int lev=0;lev<phi.size();lev++)
+        {
+            gp::updateDensity( phi[lev],density[lev] , 2*c,2*c+1 , c );
+        }
+        density.averageDown();
     }
 
     void updateDensity( level & phiLevel , level & densityLevel , int c  )
@@ -155,12 +238,48 @@ namespace gp
                     amrex::ParallelFor(vbx,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        //phiArr(i,j,k)=0;
-                        //densityArr(i,j,k)=phiArr(i,j,k) * phiArr(i,j,k);
+                        densityArr(i,j,k)=phiArr(i,j,k) * phiArr(i,j,k);
                     });
 
             }
     }
+
+    void updateDensity( level & phiLevel , level & densityLevel , int c1  , int c2 , int c3  )
+    {
+
+        auto & phiReal = phiLevel.getMultiFab(c1);
+        auto & phiImg = phiLevel.getMultiFab(c2);
+
+        auto & density = densityLevel.getMultiFab(c3);
+
+        auto & geom = phiLevel.getGeometry();
+
+
+        amrex::GpuArray<real_t,AMREX_SPACEDIM> dx = geom.CellSizeArray();
+
+
+        for ( MFIter mfi( phiReal ) ; mfi.isValid(); ++mfi )
+            {
+                const Box& vbx = mfi.validbox();
+                auto const& phiRealArr = phiReal.array(mfi);
+                auto const& phiImgArr = phiImg.array(mfi);
+
+
+                auto const& densityArr = density.array(mfi);
+
+
+                const auto left= geom.ProbDomain().lo();
+                const auto right= geom.ProbDomain().hi();
+
+                    amrex::ParallelFor(vbx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        densityArr(i,j,k)=phiRealArr(i,j,k) * phiRealArr(i,j,k) + phiImgArr(i,j,k) * phiImgArr(i,j,k) ;
+                    });
+            }
+    }
+
+
 
 /*
 
@@ -227,8 +346,67 @@ real_t complexWavefunction::getNorm( int iSpecies)
 };
 
 
+
+
+
  */
 
+
+real_t waveFunction::getNorm( int iSpecies)
+{
+    assert( iSpecies < getNSpecies() );
+
+    updateDensity(iSpecies);
+    
+    // !!!!!   requires the density to have been updated 
+    auto & density = getDensity();
+
+    auto norm = density[0].getMultiFab(iSpecies).sum();
+
+
+
+    real_t dV=1;
+    auto dx = density[0].getGeometry().CellSizeArray();
+
+    for(int d=0;d< AMREX_SPACEDIM;d++)
+    {
+        dV *= dx[d];
+    }
+
+    return norm*dV;
+};
+
+
+std::vector<real_t> waveFunction::getNorm()
+{
+    std::vector<real_t> norm;
+    norm.resize( getNSpecies() );
+    for(int i=0;i<getNSpecies();i++)
+    {
+        norm[i]=getNorm(i);
+    }
+    return norm;
+};
+
+void levels::resizeNComponents(int nComponents)
+    {
+
+        for(int lev=0;lev<=_finestLevel;lev++)
+        {
+            _levels[lev]->resizeNComponents(nComponents);
+        }
+
+    }
+
+
+void levels::increaseTime( real_t dt)
+    {
+        for(int lev=0;lev<=_finestLevel;lev++)
+        {
+            _levels[lev]->increaseTime(dt);
+        }
+
+    }
 
 
 void levels::define( std::vector<std::shared_ptr<level_t> > levels_ ) {
@@ -328,7 +506,6 @@ amrex::Vector< real_t >  levels::getTimes( ) const
     return times;
 };
 
-
 void levels::averageDown()
 {
 
@@ -354,18 +531,15 @@ void levels::averageDown()
 }
 
 
-
-
-
 void levels::save(const std::string & dirname) const 
 {
-     auto geoms= getGeometry();
+    auto geoms= getGeometry();
     amrex::Vector<int> iStep( _levels.size() , 0 );
 
     const auto &  names = _levels[0]->getNames();
     fs::create_directories(dirname);
- 
-     for(int i=0;i<_levels[0]->getNComponents();i++)
+
+    for(int i=0;i<_levels[0]->getNComponents();i++)
     {
         const auto& mf = getMultiFabsPtr( i );
 
@@ -374,7 +548,40 @@ void levels::save(const std::string & dirname) const
         amrex::WriteMultiLevelPlotfileHDF5(filePath.string(),size(),mf,{names[i] },geoms,_levels[0]->getTime(),iStep, _refRatios );
     } 
 
-} 
+}
+
+
+
+void realWaveFunction::normalize( real_t N , int c)
+{
+    auto nOld = getNorm( c );
+    auto prefactor=sqrt(N/nOld);
+
+    auto & phi = getPhi();
+
+    for(int lev=0;lev<phi.size();lev++)
+    {
+        phi[lev][c].mult( prefactor );
+    }
+
+};
+
+
+void complexWaveFunction::normalize( real_t N , int c)
+{
+    auto nOld = getNorm( c );
+    auto prefactor=sqrt(N/nOld);
+
+    auto & phi = getPhi();
+
+    for(int lev=0;lev<phi.size();lev++)
+    {
+        phi[lev][2*c].mult( prefactor );
+        phi[lev][2*c + 1].mult( prefactor );
+    }
+
+
+};
 
 /* 
 void realWavefunction:normalize( real_t N , int c ) 

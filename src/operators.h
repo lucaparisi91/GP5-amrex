@@ -43,6 +43,7 @@ namespace gp
     {
         public:
 
+
         trappedVortex(real_t g , std::array<real_t,AMREX_SPACEDIM> omega);
         void addVortex( const std::array<real_t,AMREX_SPACEDIM> & x);
 

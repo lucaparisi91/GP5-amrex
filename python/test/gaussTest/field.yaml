@@ -1,0 +1,18 @@
+levels:
+- geo:
+    domain:
+    - &id001
+      - -20
+      - 20
+    - *id001
+    shape:
+    - 64
+    - 64
+  boxes:
+  - extent:
+    - &id002
+      - 0
+      - 63
+    - *id002
+  dtype: complex
+  nComponents: 1

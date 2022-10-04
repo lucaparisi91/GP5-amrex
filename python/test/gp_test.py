@@ -7,9 +7,6 @@ import gpAmreX
 import matplotlib.pylab as plt
 import tqdm
 from pathlib import Path
-        
-
-
 
 
 def createGaussianBiLayer(domain=[[-1,1],[-1,1]],shape=(64,64) ,alpha=1/(2*0.1*0.1) ):
@@ -22,7 +19,7 @@ def createGaussianBiLayer(domain=[[-1,1],[-1,1]],shape=(64,64) ,alpha=1/(2*0.1*0
         X,Y = gp.grid(level.boxes[0],level.geo)
         r=np.sqrt(X**2 + Y**2)
         phi=np.exp(-alpha*r**2)
-        level[0]=phi
+        level[0]=[phi]
     phi = gp.field(levels)
     phi.averageDown()
     return(phi)
@@ -30,11 +27,25 @@ def createGaussianBiLayer(domain=[[-1,1],[-1,1]],shape=(64,64) ,alpha=1/(2*0.1*0
 
 def createGaussianLayer(domain=[[-1,1],[-1,1]],shape=(64,64) ,alpha=1/(2*0.1*0.1) ):
     geo=gp.geometry(  domain, shape    )
-    level=gp.level( geo,[geo.domainBox()] )
+    dtype="None"
+
+    if hasattr(alpha,"__iter__"):
+        dtype="complex"
+    else:
+        dtype="real"
+    
+
+    level=gp.level( geo,[geo.domainBox()] ,dtype=dtype)
     X,Y = gp.grid(level.boxes[0],level.geo)
     r=np.sqrt(X**2 + Y**2)
-    phi=np.exp(-alpha*r**2)
-    level[0]=phi
+
+    if dtype=="complex":
+        phi=np.exp(-alpha[0]*r**2) + 1j*np.exp(-alpha[1]*r**2)
+    else:
+        if dtype=="real":
+            phi=np.exp(-alpha*r**2)
+
+    level[0]=[phi]
     return gp.field([level])
 
 
@@ -66,6 +77,24 @@ class levels(unittest.TestCase):
         self.assertEqual( len(geo.cellSize), 2  )
         self.assertAlmostEqual( geo.cellSize[0], 40./64  )
         self.assertAlmostEqual( geo.cellSize[1], 40./64  )
+
+
+    def test_geometrySave( self ):
+            geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
+            ob=geo.toYAML()
+            geo2=gp.geometry.fromYAML(ob)
+            self.assertAlmostEqual( geo.left[0],geo2.left[0] )
+            self.assertAlmostEqual( geo.left[1],geo2.left[1] )
+            self.assertAlmostEqual( geo.shape[0],geo2.shape[0] )
+            self.assertAlmostEqual( geo.shape[1],geo2.shape[1] )
+    
+    
+
+            
+
+
+    
+
     def test_geometryRefine(self):
         geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
         geo2=geo.refine([2,2])
@@ -131,8 +160,15 @@ class levels(unittest.TestCase):
         self.assertEqual( len(b2.shape), 2  )
         self.assertEqual( b2.shape[0], 8*2  )
         self.assertEqual( b2.shape[1], 10*3  )
+    
 
+    def test_boxSaveLoad(self):
+        b=gp.box( ((11,18),(12,21)  )   )
+        ob = b.toYAML()
+        b2=gp.box.fromYAML(ob)
 
+        self.assertEqual( b.left[0], b2.left[0]  )
+        self.assertEqual( b.left[1], b2.left[1]  )
 
 
     def test_level(self):
@@ -142,6 +178,22 @@ class levels(unittest.TestCase):
 
         l=gp.level( geo, [b] )
         self.assertEqual( l.data[0].shape, (64,64) )
+
+    def test_levelSaveLoad(self):
+        geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
+        b=gp.box( ((0,63),(0,63)  )   )
+        l=gp.level( geo, [b] )
+        ob=l.toYAML()
+        l2=gp.level.fromYAML(ob)
+
+        self.assertEqual( l2.data[0].shape, (64,64) )
+        self.assertEqual( l.dtype, l2.dtype )
+        self.assertEqual( l.nComponents, l2.nComponents )
+        self.assertEqual( l.geo.left[0], l2.geo.left[0] )
+        self.assertEqual( l.geo.left[1], l2.geo.left[1] )
+        self.assertEqual( l.geo.right[0], l2.geo.right[0] )
+        self.assertEqual( l.geo.right[1], l2.geo.right[1] )
+    
 
     
     def test_grid(self):
@@ -163,7 +215,7 @@ class levels(unittest.TestCase):
 
 class initialization(gpTest):
 
-    def test_initGaussianSingleLevel(self):        
+    def test_initGaussianSingleLevelReal(self):        
         geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
         b=gp.box( ((0,63),(0,63)  )   )
         X,Y = gp.grid(b,geo)
@@ -171,9 +223,74 @@ class initialization(gpTest):
         l=gp.level(geo,[b])
         alpha=1/(2*4**2)
         phi=np.exp(-alpha*r**2)
-        l[0]=phi
-        psi=np.squeeze(l[0] )
+        l[0]=[phi]
+        psi=l[0][0]
+        self.assertNear( np.max(np.abs(psi - phi) ) , 0 ,1e-6)
+    
 
+
+    def fieldSaveLoadReal( self ):        
+        geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
+        b=gp.box( ((0,63),(0,63)  )   )
+        X,Y = gp.grid(b,geo)
+        r=np.sqrt(X**2 + Y**2)
+        l=gp.level(geo,[b])
+        alpha=1/(2*4**2)
+        phi=np.exp(-alpha*r**2)
+        l[0]=[phi]
+        psi=gp.field( [l] )
+
+        psi.save("gaussTest")
+        psi2=gp.field.load("gaussTest")
+
+        self.assertEqual(psi.dtype,psi2.dtype)
+        self.assertEqual(psi.nComponents,psi2.nComponents)
+
+        self.assertEqual(psi[0].geo.left[0],psi2[0].geo.left[0])
+        self.assertEqual(psi[0].geo.left[1],psi2[0].geo.left[1])
+
+        self.assertAlmostEqual( np.max(np.abs(psi2[0][0][0] - psi[0][0][0]) ) , 0 )
+        plt.show()
+
+
+    def fieldSaveLoadComplex( self ):        
+        geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
+        b=gp.box( ((0,63),(0,63)  )   )
+        X,Y = gp.grid(b,geo)
+        r=np.sqrt(X**2 + Y**2)
+        l=gp.level(geo,[b],dtype="complex")
+        alpha=1/(2*4**2)
+        phi=np.exp( 1j * r**2) * np.exp(-alpha*r**2) 
+
+        l[0]=[phi]
+        psi=gp.field( [l] )
+
+        psi.save("gaussTest")
+        psi2=gp.field.load("gaussTest")
+
+        self.assertEqual(psi.dtype,psi2.dtype)
+        self.assertEqual(psi.nComponents,psi2.nComponents)
+
+        self.assertEqual(psi[0].geo.left[0],psi2[0].geo.left[0])
+        self.assertEqual(psi[0].geo.left[1],psi2[0].geo.left[1])
+
+        self.assertAlmostEqual( np.max(np.real(psi2[0][0][0] - psi[0][0][0]) ) , 0 )
+        self.assertAlmostEqual( np.max(np.imag(psi2[0][0][0] - psi[0][0][0]) ) , 0 )
+
+
+    
+    def test_initGaussianSingleLevelComplex(self):        
+        geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
+        b=gp.box( ((0,63),(0,63)  )   )
+        X,Y = gp.grid(b,geo)
+        r=np.sqrt(X**2 + Y**2)
+        l=gp.level(geo,[b],dtype="complex")
+        alphaR=1/(2*4**2)
+        alphaI=1/(2*3**2)
+
+        phi=np.exp(-alphaR*r**2) + 1j * np.exp(-alphaI*r**2)
+        l[0]=[phi]
+        psi=l[0][0]
         self.assertNear( np.max(np.abs(psi - phi) ) , 0 ,1e-6)
     
 
@@ -188,7 +305,7 @@ class initialization(gpTest):
             r=np.sqrt(X**2 + Y**2)
             alpha=1/(2*4**2)
             phi=np.exp(-alpha*r**2)
-            level[0]=phi 
+            level[0]=[phi] 
 
         
         phi = gp.field(levels)
@@ -199,15 +316,14 @@ class initialization(gpTest):
         phi.save("gauss")
 
 
-    def test_normalizationSingleLevel(self):
+    def test_normalizationSingleLevelReal(self):
         alpha=1/(2*0.1**2)
         phi = createGaussianLayer(alpha=alpha )
-        phi[0].norm
-        #self.assertNear(phi[0].norm ,  0.031415926535897934,1e-5)
-        """ phi.norm=1
-        self.assertAlmostEqual(phi[0].norm,1 )
-        self.assertAlmostEqual(phi.norm,1 )
 
+        self.assertNear(phi.norm[0] ,  0.031415926535897934,1e-5)
+        
+        phi.norm=[1]
+        self.assertAlmostEqual(phi.norm[0],1 )
         
         for i in [0]:
             X,Y = gp.grid( phi[i].boxes[0], phi[i].geo)
@@ -216,20 +332,31 @@ class initialization(gpTest):
             expected=np.exp(-alpha*r**2)/np.sqrt((2*np.pi*var/2)) *np.sqrt(1)
 
             self.assertNear( np.max(np.abs(expected - phi[i][0] ) ), 0,1e-5)
+    
 
- """
+    def test_normalizationSingleLevelComplex(self):
+        alphaR=1/(2*0.1**2)
+        alphaI=1/(2*0.2**2)
+
+        phi = createGaussianLayer(alpha=(alphaR,alphaI) )
+
+        norm=phi.norm
+        self.assertEqual(len(norm),1)
+        self.assertNear(norm[0] ,  0.15707963267948968,1e-5)
+
+        phi.norm=[1]
+        self.assertNear( phi.norm[0] ,  1,1e-5)
+
 
 
     def test_normalizationTwoLevel(self):
         alpha=1/(2*0.1**2)
         phi = createGaussianBiLayer(alpha=alpha )
-        norm=phi[0].norm
+        norm=phi.norm
         self.assertEqual( len(norm), 1)
         self.assertNear(norm[0] ,  0.031415926535897934,2e-4 )
         phi.norm=[1]
-        self.assertAlmostEqual(phi[0].norm[0],1 )
         self.assertAlmostEqual(phi.norm[0],1 )
-        phi.save("gp")
 
 
         for i in [0,1]:
@@ -238,8 +365,8 @@ class initialization(gpTest):
             var=1/(2.*alpha)
             expected=np.exp(-alpha*r**2)/np.sqrt((2*np.pi*var/2)) *np.sqrt(1)
 
-            self.assertNear( np.max(np.abs(expected - phi[i][0] ) ), 0,2e-2)
-
+            self.assertNear( np.max(np.abs(expected - phi[i][0] ) ), 0,4e-2)
+        
 
 class functional(unittest.TestCase):
 
@@ -250,114 +377,186 @@ class functional(unittest.TestCase):
         func.addVortex([0,0])
 
         func.apply(phi1,phi2)
+        phi2.save("trappedVortex")
 
 
-        phi2.save("gp")
-
-
-
-def createVortexGrid(domain,shape,alpha, selections=[] ):
+def createField(domain,shape,selections=[],dtype="real"):
     geo=gp.geometry(  domain, shape    )
-    level=gp.level( geo,[geo.domainBox()] )
+    level=gp.level( geo,[geo.domainBox()],dtype=dtype )
     levels=[level]
 
     nLevels=len(selections) + 1
+
+    
     for lev in range(1,nLevels):
         ref=[2,2]
         geo=levels[lev-1].geo
         geo2=geo.refine(ref)
         box2=geo.selectBox(selections[lev-1]  ).refine(ref)
 
-        levels.append( gp.level(geo2,[box2]) )
-    
-    # initialize gaussian
-    for level in levels:
-        X,Y = gp.grid(level.boxes[0],level.geo)
-        r=np.sqrt(X**2 + Y**2)
-        phi=np.exp(-alpha*r**2)
-        level[0]=phi
-    phi=gp.field(levels)
+        levels.append( gp.level(geo2,[box2] ,dtype=dtype) )
+    return gp.field(levels)
+
+
+
+
+def initGaussian(phi, alphaReal, alphaImag=None):
+    for lev in range( len(phi) ):
+        level=phi[lev]
+        
+        for iBox,box in enumerate(level.boxes):
+            X,Y = gp.grid(box,level.geo)
+            r=np.sqrt(X**2 + Y**2)
+            phi0=np.exp(-alphaReal*r**2)
+
+            if alphaImag!=None:
+                phi0+=1j*np.exp(-alphaImag*r**2)
+            else:
+                if level.dtype == "complex":
+                    phi0=phi0 + 1j*phi0*0
+            
+            level[iBox]=[ phi0 ]
     phi.averageDown()
-    return phi
+    
 
 
+
+def plotRadial(phi,ob="density"):
+    for lev in range(len(phi) ):
+            level=phi[lev]
+            X,Y =gp.grid(level.boxes[0],level.geo)
+            r=np.sqrt(X**2 + Y**2)
+            y=None
+            if ob == "density":
+                y=np.abs(phi[lev][0][0].flatten())**2
+            else:
+                if ob == "phase":
+                    y=np.angle(phi[lev][0][0].flatten()   )
+
+            plt.plot(r.flatten(), y , "o" , label=str(lev) )
 
 
 class timeStepping(gpTest):
 
-    def test_eulero(self):
+    def timeSteppingTest( self,stepperName ):
+        print("Time stepping - {} ".format(stepperName) )
         alpha=1/(2*2**2)
         shape=(64,64)
-        domain=[ [-15,15],[-15,15] ]
-        selections=[ [ [-2,2] , [-2,2]     ]  ,[  [-1,1] , [-1,1]   ] , [ [-0.5,0.5], [-0.5,0.5]  ] , [[-0.1,0.1],[-0.1,0.1]] ]
+        domain=[ [-10,10],[-10,10] ]
+        selections=[]
+        #selections=[ [ [-2,2] , [-2,2]     ]  ,[  [-1,1] , [-1,1]   ] , [ [-0.5,0.5], [-0.5,0.5]  ] , [[-0.1,0.1],[-0.1,0.1]] ]
 
+        phiOld=createField( domain,shape,selections=selections,dtype="complex" )
+        phiNew=createField( domain,shape,selections=selections,dtype="complex" )
 
-        phiOld=createVortexGrid(domain,shape,alpha,selections=selections)
-        phiNew=createVortexGrid(domain,shape,alpha,selections=selections)
-
+        initGaussian(phiOld,alphaReal=alpha)
 
         phiOld.norm=[1]
 
         phiOld.save("init")
 
+        #plotRadial(phiOld)
+        #plt.show()
 
-        dt=0.01* phiOld[3].geo.cellSize[0] **2
+        N=1
 
+        dt=0.01* phiOld[ len(phiOld) - 1  ].geo.cellSize[0] **2
 
-        func=gp.trappedVortex(g=1000,omega=[1,1] )
+        func=gp.trappedVortex( g=100,omega=[1,1] )
         func.define(phiOld)
-        stepper=gp.stepper( func )
-        func.addVortex( [0,0 ] )
+        stepper=gp.stepper( func, kind=stepperName,realTime=False )
+        stepper.define(phiOld)
+        stepper.enableNormalization([N])
+        phiOld.norm=[N]
 
+        #func.addVortex( [0,0 ] )
 
         Path("output").mkdir(parents=True, exist_ok=True)
         phiOld.save("output/phi_{:d}".format(0) )
-        
 
-        for iBlock in tqdm.tqdm(range(100) ):
-            for iStep in range(1000):
+        nBlocks=10
+        for iBlock in range(nBlocks):
+            for iStep in range( 1000 ):
                 stepper.advance( phiOld,phiNew, dt )
-                phiNew.norm=[1]
                 phiOld, phiNew = phiNew, phiOld
             phiOld.save("output/phi_{:d}".format(iBlock+1) )
+            print( "t: {:f}, Max den.:{:f} ".format( phiOld.time,np.max(np.abs(phiOld[0][0][0])**2)  ) )
+        
+
+        densityMax=np.max(np.abs(phiOld[0][0][0])**2)
+        self.assertNear(densityMax , 0.056432 , 1e-6 )
+
+        #plotRadial(phiOld)
+
+        #plt.legend()
+        #plt.show()
+
+        phiOld=gp.field.load("output/phi_{:d}".format(nBlocks-1))
 
 
+    # real time evolution
+
+
+        func=gp.trappedVortex(g=100,omega=[1,1] )
+        func.define(phiOld)
+        stepper=gp.stepper( func , realTime= True,kind="RK4" )
+        stepper.define(phiOld)
+        stepper.enableNormalization([N])
+
+
+        dt=0.01* phiOld[ len(phiOld) - 1  ].geo.cellSize[0] **2
+        
+        for iBlock in (range(20) ):
+            for iStep in range(1000):
+                stepper.advance( phiOld,phiNew, dt )
+                phiOld, phiNew = phiNew, phiOld
+            print( "t: {:f}, Max den.:{:f} ".format( phiOld.time,np.max(np.abs(phiOld[0][0][0])**2)  ) )
 
         
+        densityMax=np.max(np.abs(phiOld[0][0][0])**2)
+        self.assertNear(densityMax , 0.056432 , 1e-6 )
+
+
+        #plotRadial(phiOld,ob="phase")
+
+
+
+        #plt.legend()
+        #plt.show()
+
+    def test_eulero(self):
+        self.timeSteppingTest("eulero")
+    def test_RK4(self):
+        self.timeSteppingTest("RK4")
+    
+    @unittest.skip("time stepping on two levels")
     def test_euleroTwoLevels(self):
         alpha=1/(2*2**2)
         shape=(64,64)
-        
-        
 
-        phiOld=createGaussianBiLayer(domain=[[-15,20],[-20,20]] , alpha=alpha,shape=shape)
+
+        phiOld=createGaussianBiLayer(domain=[[-20,20],[-20,20]] , alpha=alpha,shape=shape)
         phiNew=createGaussianBiLayer(domain=[[-20,20],[-20,20]] , alpha=alpha,shape=shape)
-
 
         phiOld.norm=[1]
 
-
-        dt=0.01* phiOld[1].geo.cellSize[0] **2
-
+        dt=0.1* phiOld[1].geo.cellSize[0] **2
 
         func=gp.trappedVortex(g=10000,omega=[1,1] )
-        func.cpp().define(phiOld.cpp())
-        stepper=gpAmreX.stepper( func.cpp() )
-        #func.addVortex( [0,0 ] )
+        func.cpp().define(phiOld.cpp() )
+        stepper=gpAmreX.stepper( func.cpp() , "eulero", realTime=False )
 
-
-
+        func.addVortex( [0,0 ] )
 
         phiOld.save("init")
-
 
         for iStep in tqdm.tqdm(range(10000) ):
             stepper.advance( phiOld.cpp(),phiNew.cpp(), dt )
             phiNew.averageDown()
-            phiNew.norm=[1]
             phiOld, phiNew = phiNew, phiOld
-    
+        
         phiOld.save("result")
+    
 
 
 

@@ -1,6 +1,5 @@
 
 
-
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <iostream>
@@ -15,9 +14,9 @@
 namespace py = pybind11;
 using real_t = double;
 
+
 namespace pyInterfaceAmreX
 {
-
 
     void initialize()
     {
@@ -95,17 +94,16 @@ namespace pyInterfaceAmreX
 
         auto & getBox() {return _box;}
 
-
         private:
 
         amrex::Box _box;
     };
 
-    /*
 
     class level
     {
         public:
+        using level_t = gp::level;
 
         level( const geometry & geo, std::vector<box> & boxes, int nComponents )
         {
@@ -132,22 +130,23 @@ namespace pyInterfaceAmreX
             _level->saveHDF5(filename);
         }
 
-        void setData(const py::array_t<double> & phiPy, box & pyBox)
+
+        void setData(const py::array_t<double> & phiPy, box & pyBox, int c)
         {
             // set up python array
             py::buffer_info info = phiPy.request();
-            if (info.shape.size() != AMREX_SPACEDIM + 1 )
+            if (info.shape.size() != AMREX_SPACEDIM )
             {
-                throw std::runtime_error(std::string("Numpy array should have rank ") + std::to_string(AMREX_SPACEDIM + 1));
+                throw std::runtime_error(std::string("Numpy array should have rank ") + std::to_string(AMREX_SPACEDIM));
             };
-            auto phiArrPy = phiPy.unchecked<AMREX_SPACEDIM + 1>();
+            auto phiArrPy = phiPy.unchecked<AMREX_SPACEDIM>();
 
             const auto & box = pyBox.getBox();
 
 
-            auto & phi = _level->getMultiFab();
+            auto & phi = _level->getMultiFab(c);
             int nc= _level->getNComponents();
-                
+
 
             for ( amrex::MFIter mfi(phi); mfi.isValid(); ++mfi )
             {
@@ -163,7 +162,7 @@ namespace pyInterfaceAmreX
                     {
                         for(int c=0 ; c< nc ; c++)
                         {
-                            phiArr(i,j,k,c)=phiArrPy( AMREX_D_DECL(i-lo[0],j-lo[1],k - lo[2]) , c );
+                            phiArr(i,j,k)=phiArrPy( AMREX_D_DECL(i-lo[0],j-lo[1],k - lo[2]) );
                         }
                         
                     });
@@ -177,17 +176,13 @@ namespace pyInterfaceAmreX
         }
 
 
-        auto getNorm(  ) const  { return _level->getNorm(); }
-
-
-        auto getData(box & pyBox)
+        auto getData(box & pyBox, int c)
         {
             const auto & box = pyBox.getBox();
 
-            auto & phi = _level->getMultiFab();
+            auto & phi = _level->getMultiFab(c);
 
-            int nc = _level->getNComponents();
-
+            int nc = 1;
 
             for ( MFIter mfi(phi); mfi.isValid(); ++mfi )
             {
@@ -198,16 +193,13 @@ namespace pyInterfaceAmreX
 
 
                 if (vbx == box) {
-                     py::array_t<double> phiPy( { AMREX_D_DECL( shape[0],shape[1],shape[2] ) , nc } ) ;
-                     auto phiArrPy = phiPy.mutable_unchecked<AMREX_SPACEDIM + 1 >();
+                     py::array_t<double> phiPy( { AMREX_D_DECL( shape[0],shape[1],shape[2] )  } ) ;
+                     auto phiArrPy = phiPy.mutable_unchecked<AMREX_SPACEDIM >();
 
                       amrex::ParallelFor(vbx,
                         [&] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        for(int c=0;c<nc;c++)
-                        {
-                            phiArrPy( AMREX_D_DECL(i-lo[0],j-lo[1],k - lo[2]) ,c )=phiArr(i,j,k,c);
-                        }
+                        phiArrPy( AMREX_D_DECL(i-lo[0],j-lo[1],k - lo[2]) )=phiArr(i,j,k);
                         
                     });
 
@@ -215,12 +207,16 @@ namespace pyInterfaceAmreX
                 }
 
             }
+            
             // if box not found returns an empty array
              py::array_t<double> phiPy( { AMREX_D_DECL((int)0, (int)0, (int)0) } ) ;
              return phiPy;
         }
 
+
+
         auto getLevelPtr() {return _level; }
+
 
         private:
 
@@ -230,52 +226,104 @@ namespace pyInterfaceAmreX
     };
 
 
-
-    
     class field
     {
         public:
 
-        field(std::vector<level<level_t > > & levels)
-        {
-            
-            std::vector<std::shared_ptr<level_t> > levelsPtr;
+        field(){}
 
+
+        void setWaveFunction( std::shared_ptr<gp::waveFunction> wave_ )
+        {
+            _wave=wave_;
+        }
+
+        void averageDown()
+        {
+            _wave->getPhi().averageDown();
+        }
+
+        void save( const std::string & filename)
+        {
+            _wave->getPhi().save(filename);
+        }
+
+
+        auto & getWaveFunction() {return *_wave;}
+        const auto & getWaveFunction() const {return *_wave;}
+
+        void normalize( real_t N , int c ) {
+            _wave->normalize(N,c);
+        }
+
+        std::vector<real_t> getNorm() { return _wave->getNorm() ;   }
+
+        real_t getTime() const  { return _wave->getTime() ; }
+
+
+        private:
+
+        std::shared_ptr<gp::waveFunction> _wave;
+
+    };
+
+
+    class realField : public field 
+    {
+        public:
+
+        realField(  std::vector<level> &   levels)
+        {
+            std::vector<std::shared_ptr<gp::level> > levelsPtr;
             for ( auto & level : levels)
             {
                 levelsPtr.push_back( level.getLevelPtr() );
             }
 
-            _levels=std::make_shared<gp::levels<level_t> >(levelsPtr);
+            auto _levels=std::make_shared<gp::levels >(levelsPtr);
+
+            _wave=std::make_shared<gp::realWaveFunction>(_levels);
+            setWaveFunction(_wave);
 
         }
 
-        void averageDown()
-        {
-            _levels->averageDown();
-        }
-
-        void save( const std::string & filename)
-        {
-            _levels->save(filename);
-        }
-
-        auto getLevelsPtr() {return _levels; }
-
-        auto & getLevels() {return *_levels;}
-
-        void normalize(const std::vector<real_t>  & N ) { _levels->normalize(N) ; }
-
-        std::vector<real_t> getNorm() { return _levels->getNorm() ;   }
-
+        auto & getWaveFunction() {return *_wave;}
+        const auto & getWaveFunction() const {return *_wave; }
         
+
         private:
 
-        std::shared_ptr<gp::levels<level_t>  > _levels;
+        std::shared_ptr<gp::realWaveFunction> _wave;
+
     };
 
-    using realField=field<gp::realLevel> ;
-    using complexField=field<gp::complexLevel> ;
+
+    class complexField : public field 
+    {
+        public:
+
+        complexField(  std::vector<level> &   levels )
+        {
+            std::vector<std::shared_ptr<gp::level> > levelsPtr;
+            for ( auto & level : levels )
+            {
+                levelsPtr.push_back( level.getLevelPtr() );
+            }
+
+            auto _levels=std::make_shared<gp::levels >(levelsPtr);
+            _wave=std::make_shared<gp::complexWaveFunction>(_levels);
+            setWaveFunction(_wave);
+
+        }
+
+        auto & getWaveFunction() {return (*_wave);}
+        const auto &  getWaveFunction() const {return (*_wave); }
+
+        private:
+
+        std::shared_ptr<gp::complexWaveFunction> _wave;
+
+    };
 
 
     class functional
@@ -288,7 +336,6 @@ namespace pyInterfaceAmreX
 
 
     };
-
 
     class trappedVortex : public functional
     {
@@ -304,14 +351,20 @@ namespace pyInterfaceAmreX
             _trappedVortex->addVortex(x);
         }
 
-        void apply( realField & levelsOld , realField & levelsNew)
+        void apply( realField & levelsOld , realField & levelsNew )
         {
-            _trappedVortex->apply( levelsOld.getLevels(),levelsNew.getLevels() );
+            _trappedVortex->apply( levelsOld.getWaveFunction(),levelsNew.getWaveFunction() );
         }
 
-        void define( realField & initLevels )
+
+        void apply( complexField & levelsOld , complexField & levelsNew)
         {
-            _trappedVortex->define( initLevels.getLevels()   );
+            _trappedVortex->apply( levelsOld.getWaveFunction(),levelsNew.getWaveFunction() );
+        }
+
+        void define( field & wave )
+        {
+            _trappedVortex->define( wave.getWaveFunction().getPhi()   );
         }
 
 
@@ -328,22 +381,58 @@ namespace pyInterfaceAmreX
     {
         public:
 
-        using stepper_t = gp::euleroTimeStepper;
-
-        stepper( trappedVortex & func )
+        stepper( trappedVortex & func , const std::string & name  )
         {
-            _stepper=std::make_shared<stepper_t>( func.getFunctional() );
+
+            if (name == "eulero")
+            {
+                _stepper=std::make_shared<gp::euleroTimeStepper>( func.getFunctional() );
+            }
+            else if (name == "RK4")
+            {
+                _stepper=std::make_shared<gp::RK4TimeStepper>( func.getFunctional() );
+            }
+            else
+            {
+                throw std::runtime_error("Stepper is not known");
+            }
+
+            
         };
 
+        void addNormalizationConstraint(std::vector<real_t> N)
+        {
+            _stepper->addConstraint( std::make_shared<gp::normalizationConstraint>(N) );
+        }
 
         void advance( realField & oldLevels, realField & newLevels,real_t dt)
         {
-            _stepper->advance(oldLevels.getLevels(),newLevels.getLevels(),dt);
+            _stepper->advanceImaginaryTime(oldLevels.getWaveFunction(),newLevels.getWaveFunction(),dt);
         }
+
+        void advanceRealTime( complexField & oldLevels, complexField & newLevels,real_t dt)
+        {
+            _stepper->advanceRealTime(oldLevels.getWaveFunction(),newLevels.getWaveFunction(),dt);
+        }
+
+
+        void advanceImaginaryTime( complexField & oldLevels, complexField & newLevels,real_t dt)
+        {
+            _stepper->advanceImaginaryTime(oldLevels.getWaveFunction(),newLevels.getWaveFunction(),dt);
+        }
+
+        void define(complexField & wave )
+        {
+            _stepper->define(wave.getWaveFunction() );
+        }
+
+
+
+
 
         private:
 
-        std::shared_ptr<stepper_t> _stepper;
+        std::shared_ptr<gp::timeStepper> _stepper;
     };
 
 };
@@ -358,28 +447,34 @@ PYBIND11_MODULE(gpAmreX, m) {
       m.def("initialize", &pyInterfaceAmreX::initialize, "Initialize amrex");
     m.def("finalize", &pyInterfaceAmreX::finalize, "Finalize amrex");
 
+
     py::class_<pyInterfaceAmreX::box>(m, "box")
      .def(py::init<  const std::array<size_t,AMREX_SPACEDIM> & ,  const std::array<size_t,AMREX_SPACEDIM> & >() )
      .def("getLow",&pyInterfaceAmreX::box::getLow)
       .def("getHigh",&pyInterfaceAmreX::box::getHigh);
-    
 
-    py::class_<pyInterfaceAmreX::level<gp::realLevel> >(m, "realLevel")
-     .def(py::init<  const pyInterfaceAmreX::geometry & , std::vector<pyInterfaceAmreX::box> &  , int >() )  
-     .def("setData",&pyInterfaceAmreX::level<gp::realLevel>::setData)
-     .def("getData",&pyInterfaceAmreX::level<gp::realLevel>::getData) 
-     .def("save",&pyInterfaceAmreX::level<gp::realLevel>::save) 
-     .def("getNorm",&pyInterfaceAmreX::level<gp::realLevel>::getNorm) 
+    py::class_<pyInterfaceAmreX::level >(m, "level")
+        .def(py::init<  const pyInterfaceAmreX::geometry & , std::vector<pyInterfaceAmreX::box> &  , int >()  )  
+        .def("setData",&pyInterfaceAmreX::level::setData )
+        .def("getData",&pyInterfaceAmreX::level::getData ) 
+        .def("save",&pyInterfaceAmreX::level::save )
      ;
 
-
-
-    py::class_<pyInterfaceAmreX::field<gp::realLevel> >(m, "field")
-     .def(py::init<  std::vector<pyInterfaceAmreX::realLevel > &  >() )
+    py::class_<pyInterfaceAmreX::field >(m, "field")
+     //.def(py::init<  std::vector<pyInterfaceAmreX::level > &  >() );
      .def("save",&pyInterfaceAmreX::realField::save)
      .def("averageDown",&pyInterfaceAmreX::realField::averageDown)
      .def("getNorm",&pyInterfaceAmreX::realField::getNorm)
-     .def("normalize",&pyInterfaceAmreX::realField::normalize);
+     .def("normalize",&pyInterfaceAmreX::realField::normalize)
+     .def("getTime",&pyInterfaceAmreX::realField::getTime);
+
+
+    py::class_<pyInterfaceAmreX::realField , pyInterfaceAmreX::field >(m, "realField")
+    .def(py::init<  std::vector<pyInterfaceAmreX::level > &  >() );
+
+    py::class_<pyInterfaceAmreX::complexField , pyInterfaceAmreX::field >(m, "complexField")
+    .def(py::init<  std::vector<pyInterfaceAmreX::level > &  >() );
+
 
     
 
@@ -389,25 +484,29 @@ PYBIND11_MODULE(gpAmreX, m) {
     ;
 
 
-    py::class_<pyInterfaceAmreX::trappedVortex,pyInterfaceAmreX::functional>(m, "trappedVortex")
+    py::class_<pyInterfaceAmreX::trappedVortex>(m, "trappedVortex")
      .def(py::init<  real_t ,  std::array<real_t,AMREX_SPACEDIM>  >() )
      .def("addVortex",&pyInterfaceAmreX::trappedVortex::addVortex)
-     .def("apply",& pyInterfaceAmreX::trappedVortex::apply)
-     .def("define",& pyInterfaceAmreX::trappedVortex::define )        
+     //.def("apply",& pyInterfaceAmreX::trappedVortex::apply)
+     .def("apply", static_cast< void (pyInterfaceAmreX::trappedVortex::*)(
+        pyInterfaceAmreX::realField & , pyInterfaceAmreX::realField & )> (& pyInterfaceAmreX::trappedVortex::apply ))
+     .def("define",& pyInterfaceAmreX::trappedVortex::define )   
+     .def("apply", static_cast< void (pyInterfaceAmreX::trappedVortex::*)(
+        pyInterfaceAmreX::complexField & , pyInterfaceAmreX::complexField & )> (& pyInterfaceAmreX::trappedVortex::apply ))     
      ;
 
+
     py::class_<pyInterfaceAmreX::stepper>(m, "stepper")
-     .def(py::init<  pyInterfaceAmreX::trappedVortex &  >() )
+     .def(py::init<  pyInterfaceAmreX::trappedVortex &  , const std::string & >() )
      .def("advance",& pyInterfaceAmreX::stepper::advance )
+     .def("advanceRealTime",& pyInterfaceAmreX::stepper::advanceRealTime )
+     .def("addNormalizationConstraint",& pyInterfaceAmreX::stepper::addNormalizationConstraint )
+     .def("advanceImaginaryTime",& pyInterfaceAmreX::stepper::advanceImaginaryTime )
+      .def("define",& pyInterfaceAmreX::stepper::define )
     ;
-
-     
- 
-
 
   ;         
 
 
-*/
 
 }
