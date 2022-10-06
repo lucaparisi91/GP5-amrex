@@ -1,0 +1,19 @@
+levels:
+- geo:
+    domain:
+    - - -10
+      - 10
+    - - -10
+      - 10
+    shape:
+    - 64
+    - 64
+  boxes:
+  - extent:
+    - - 0
+      - 63
+    - - 0
+      - 63
+  dtype: complex
+  nComponents: 1
+time: 4.39453125

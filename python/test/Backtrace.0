@@ -8,131 +8,57 @@
             readelf -wl my_exefile | grep my_line_address'
     to find out the offset for that line.
 
- 0: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gp-0.1-py3.10-linux-x86_64.egg/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace20print_backtrace_infoEP8_IO_FILE+0x45) [0x7f8a99fdc165]
+ 0: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace20print_backtrace_infoEP8_IO_FILE+0x45) [0x7f87e8b88025]
 
- 1: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gp-0.1-py3.10-linux-x86_64.egg/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace7handlerEi+0x362) [0x7f8a99fde0b2]
+ 1: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN5amrex11BLBackTrace7handlerEi+0x362) [0x7f87e8b89f72]
 
- 2: /lib/x86_64-linux-gnu/libc.so.6(+0x430c0) [0x7f8aa88f60c0]
+ 2: /lib/x86_64-linux-gnu/libc.so.6(+0x430c0) [0x7f87f79400c0]
 
- 3: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gp-0.1-py3.10-linux-x86_64.egg/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp3addERNS_12waveFunctionES1_S1_d+0x119) [0x7f8a99eef369]
+ 3: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp10LHYDroplet5applyERNS_19complexWaveFunctionES2_+0x3a3) [0x7f87e8a995c3]
 
- 4: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gp-0.1-py3.10-linux-x86_64.egg/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp14RK4TimeStepper15advanceRealTimeERNS_19complexWaveFunctionES2_d+0xc1) [0x7f8a99ef06f1]
+ 4: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp14RK4TimeStepper21evaluateImaginaryTimeERNS_19complexWaveFunctionES2_d+0x32) [0x7f87e8a9bf22]
 
- 5: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gp-0.1-py3.10-linux-x86_64.egg/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x84933) [0x7f8a99ec5933]
+ 5: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(_ZN2gp14RK4TimeStepper20advanceImaginaryTimeERNS_19complexWaveFunctionES2_d+0xa7) [0x7f87e8a9c077]
 
- 6: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gp-0.1-py3.10-linux-x86_64.egg/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x9d1f3) [0x7f8a99ede1f3]
+ 6: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x84ce3) [0x7f87e8a6fce3]
 
- 7: python(+0x17ffa4) [0x55b4182d6fa4]
+ 7: /home/luca/miniconda3/envs/stats/lib/python3.10/site-packages/gpAmreX.cpython-310-x86_64-linux-gnu.so(+0x9e0f3) [0x7f87e8a890f3]
 
- 8: python(_PyObject_MakeTpCall+0x15e) [0x55b41829952e]
+ 8: python(+0x17ffa4) [0x5633aea73fa4]
 
- 9: python(+0xaea74) [0x55b418205a74]
+ 9: python(_PyObject_MakeTpCall+0x15e) [0x5633aea3652e]
 
-10: python(+0x1052a5) [0x55b41825c2a5]
+10: python(+0xaea74) [0x5633ae9a2a74]
 
-11: python(+0x18f742) [0x55b4182e6742]
+11: python(+0x1052a5) [0x5633ae9f92a5]
 
-12: python(+0x1049f3) [0x55b41825b9f3]
+12: python(+0x18f742) [0x5633aea83742]
 
-13: python(+0x18f742) [0x55b4182e6742]
+13: python(+0x1049f3) [0x5633ae9f89f3]
 
-14: python(+0x1049f3) [0x55b41825b9f3]
+14: python(+0x18f742) [0x5633aea83742]
 
-15: python(+0x18f742) [0x55b4182e6742]
+15: python(+0x1049f3) [0x5633ae9f89f3]
 
-16: python(+0x18fc9b) [0x55b4182e6c9b]
+16: python(+0x18f742) [0x5633aea83742]
 
-17: python(+0x104425) [0x55b41825b425]
+17: python(PyEval_EvalCode+0x88) [0x5633aea92578]
 
-18: python(+0x18f742) [0x55b4182e6742]
+18: python(+0x2548fb) [0x5633aeb488fb]
 
-19: python(+0x1049f3) [0x55b41825b9f3]
+19: python(+0x28d3a5) [0x5633aeb813a5]
 
-20: python(+0x18f742) [0x55b4182e6742]
+20: python(+0x2911d0) [0x5633aeb851d0]
 
-21: python(+0x18fd4e) [0x55b4182e6d4e]
+21: python(_PyRun_SimpleFileObject+0x1b8) [0x5633aeb853b8]
 
-22: python(_PyObject_Call+0x20a) [0x55b41829efaa]
+22: python(_PyRun_AnyFileObject+0x44) [0x5633aeb854c4]
 
-23: python(_PyEval_EvalFrameDefault+0x26e4) [0x55b41833a774]
+23: python(Py_RunMain+0x35d) [0x5633aeb865bd]
 
-24: python(+0x18f742) [0x55b4182e6742]
+24: python(Py_BytesMain+0x39) [0x5633aeb867d9]
 
-25: python(_PyObject_FastCallDictTstate+0x6a) [0x55b4182d705a]
+25: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf3) [0x7f87f79210b3]
 
-26: python(+0x1981d5) [0x55b4182ef1d5]
-
-27: python(_PyObject_MakeTpCall+0x15e) [0x55b41829952e]
-
-28: python(_PyEval_EvalFrameDefault+0x3bb) [0x55b41833844b]
-
-29: python(+0x18f742) [0x55b4182e6742]
-
-30: python(+0x18fd4e) [0x55b4182e6d4e]
-
-31: python(_PyObject_Call+0x20a) [0x55b41829efaa]
-
-32: python(_PyEval_EvalFrameDefault+0x26e4) [0x55b41833a774]
-
-33: python(+0x18f742) [0x55b4182e6742]
-
-34: python(_PyObject_FastCallDictTstate+0x6a) [0x55b4182d705a]
-
-35: python(+0x1981d5) [0x55b4182ef1d5]
-
-36: python(_PyObject_MakeTpCall+0x15e) [0x55b41829952e]
-
-37: python(_PyEval_EvalFrameDefault+0x3bb) [0x55b41833844b]
-
-38: python(+0x18f742) [0x55b4182e6742]
-
-39: python(+0x18fd4e) [0x55b4182e6d4e]
-
-40: python(_PyObject_Call+0x20a) [0x55b41829efaa]
-
-41: python(_PyEval_EvalFrameDefault+0x26e4) [0x55b41833a774]
-
-42: python(+0x18f742) [0x55b4182e6742]
-
-43: python(_PyObject_FastCallDictTstate+0x6a) [0x55b4182d705a]
-
-44: python(+0x1981d5) [0x55b4182ef1d5]
-
-45: python(_PyObject_MakeTpCall+0x15e) [0x55b41829952e]
-
-46: python(_PyEval_EvalFrameDefault+0x3bb) [0x55b41833844b]
-
-47: python(+0x18f742) [0x55b4182e6742]
-
-48: python(+0x1049f3) [0x55b41825b9f3]
-
-49: python(+0x18f742) [0x55b4182e6742]
-
-50: python(+0x1049f3) [0x55b41825b9f3]
-
-51: python(+0x18f742) [0x55b4182e6742]
-
-52: python(_PyObject_FastCallDictTstate+0x6a) [0x55b4182d705a]
-
-53: python(+0x198029) [0x55b4182ef029]
-
-54: python(+0x15e311) [0x55b4182b5311]
-
-55: python(_PyObject_MakeTpCall+0x204) [0x55b4182995d4]
-
-56: python(_PyEval_EvalFrameDefault+0x4ce5) [0x55b41833cd75]
-
-57: python(+0x18f742) [0x55b4182e6742]
-
-58: python(PyEval_EvalCode+0x88) [0x55b4182f5578]
-
-59: python(+0x2548fb) [0x55b4183ab8fb]
-
-60: python(+0x28d3a5) [0x55b4183e43a5]
-
-61: python(+0x2911d0) [0x55b4183e81d0]
-
-62: python(_PyRun_SimpleFileObject+0x1b8) [0x55b4183e83b8]
-
-63: python(_PyRun_AnyFileObject+0x44) [0x55b4183e84c4]
+26: python(+0x2125d4) [0x5633aeb065d4]
 

@@ -1,0 +1,14 @@
+run:
+  maxStepsPerBlock: 10000
+  maxNBlocks: 10
+  timeStep: 0.0009765625
+  offset: 3
+  outputDir: imag
+stepper:
+  realTime: false
+  kind: RK4
+  functional:
+    name: LHYDroplet
+  N:
+  - 100
+phi: imag/fields/phi_4

@@ -8,7 +8,6 @@ import matplotlib.pylab as plt
 import tqdm
 from pathlib import Path
 
-
 def createGaussianBiLayer(domain=[[-1,1],[-1,1]],shape=(64,64) ,alpha=1/(2*0.1*0.1) ):
     geo=gp.geometry(  domain, shape    )
     level0=gp.level( geo,[geo.domainBox()] )
@@ -55,12 +54,12 @@ class gpTest(unittest.TestCase):
 
 
 
+
 class levels(unittest.TestCase):
 
     def test_geometry(self):
         geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
-        
-        
+
         self.assertEqual( len(geo.left), 2  )
         self.assertAlmostEqual( geo.left[0], -20  )
         self.assertAlmostEqual( geo.left[1], -20  )
@@ -73,10 +72,19 @@ class levels(unittest.TestCase):
         self.assertEqual( geo.shape[0], 64  )
         self.assertEqual( geo.shape[1], 64  )
 
-
         self.assertEqual( len(geo.cellSize), 2  )
         self.assertAlmostEqual( geo.cellSize[0], 40./64  )
         self.assertAlmostEqual( geo.cellSize[1], 40./64  )
+
+        geo2=gp.geometry.fromGeometry(geo)
+        self.assertAlmostEqual( geo.left[0], geo2.left[1]  )
+        self.assertAlmostEqual( geo.left[1], geo2.left[1]  )
+        self.assertAlmostEqual( geo.right[0], geo2.right[1]  )
+        self.assertAlmostEqual( geo.right[1], geo2.right[1]  )
+        self.assertEqual( geo.shape[0], geo2.shape[0]  )
+        self.assertEqual( geo.shape[1], geo2.shape[1]  )
+
+
 
 
     def test_geometrySave( self ):
@@ -90,11 +98,6 @@ class levels(unittest.TestCase):
     
     
 
-            
-
-
-    
-
     def test_geometryRefine(self):
         geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
         geo2=geo.refine([2,2])
@@ -103,6 +106,8 @@ class levels(unittest.TestCase):
         self.assertAlmostEqual( geo2.right[0], 20  )
         self.assertAlmostEqual( geo2.left[1], -20  )
         self.assertAlmostEqual( geo2.right[1], 20  )
+    
+    
     def test_geometryBox(self):
         geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
         b=geo.domainBox()
@@ -117,6 +122,8 @@ class levels(unittest.TestCase):
         self.assertEqual( len(b.right), 2  )
         self.assertEqual( b.right[0], 63  )
         self.assertEqual( b.right[1], 63  )
+
+
     
     def test_geometrySelect(self):
         geo=gp.geometry(  [ (-5,5) , (-5,5) ] , (20,20)    )
@@ -131,28 +138,12 @@ class levels(unittest.TestCase):
         
         self.assertEqual( selectionBox.right[0], 14 )
         self.assertEqual( selectionBox.right[1], 16 )
-
-
-
-
-
-
-
                
         
-    def test_box(self):
-        b=gp.box( ((0,64),(0,64)  )   )
-        self.assertEqual( len(b.shape), 2  )
-        self.assertEqual( b.shape[0], 65  )
-        self.assertEqual( b.shape[1], 65  )
+  
 
-        self.assertEqual( len(b.left), 2  )
-        self.assertEqual( b.left[0], 0  )
-        self.assertEqual( b.left[1], 0  )
 
-        self.assertEqual( len(b.right), 2  )
-        self.assertEqual( b.right[0], 64  )
-        self.assertEqual( b.right[1], 64  )
+
     def test_boxRefine(self):
         b=gp.box( ((11,18),(12,21)  )   )
         b2=b.refine((2,3) )
@@ -160,6 +151,8 @@ class levels(unittest.TestCase):
         self.assertEqual( len(b2.shape), 2  )
         self.assertEqual( b2.shape[0], 8*2  )
         self.assertEqual( b2.shape[1], 10*3  )
+
+
     
 
     def test_boxSaveLoad(self):
@@ -178,6 +171,10 @@ class levels(unittest.TestCase):
 
         l=gp.level( geo, [b] )
         self.assertEqual( l.data[0].shape, (64,64) )
+
+
+
+
 
     def test_levelSaveLoad(self):
         geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
@@ -211,10 +208,17 @@ class levels(unittest.TestCase):
         np.testing.assert_array_equal(b.right,[10,10])
         np.testing.assert_array_equal(b.shape,[11,11] )
 
+        b2=gp.box.fromBox( b  )
+
+        np.testing.assert_array_equal(b.left,b2.left)
+        np.testing.assert_array_equal(b.right,b2.right)
+
+
 
 
 class initialization(gpTest):
 
+    
     def test_initGaussianSingleLevelReal(self):        
         geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
         b=gp.box( ((0,63),(0,63)  )   )
@@ -229,7 +233,7 @@ class initialization(gpTest):
     
 
 
-    def fieldSaveLoadReal( self ):        
+    def test_fieldSaveLoadReal( self ):        
         geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
         b=gp.box( ((0,63),(0,63)  )   )
         X,Y = gp.grid(b,geo)
@@ -243,17 +247,23 @@ class initialization(gpTest):
         psi.save("gaussTest")
         psi2=gp.field.load("gaussTest")
 
+
         self.assertEqual(psi.dtype,psi2.dtype)
         self.assertEqual(psi.nComponents,psi2.nComponents)
+        self.assertEqual(psi.time,psi2.time)
 
+        
         self.assertEqual(psi[0].geo.left[0],psi2[0].geo.left[0])
         self.assertEqual(psi[0].geo.left[1],psi2[0].geo.left[1])
 
         self.assertAlmostEqual( np.max(np.abs(psi2[0][0][0] - psi[0][0][0]) ) , 0 )
+        
+        
         plt.show()
+    
 
 
-    def fieldSaveLoadComplex( self ):        
+    def test_fieldSaveLoadComplex( self ):        
         geo=gp.geometry(  [ (-20,20) , (-20,20) ] , (64,64)    )
         b=gp.box( ((0,63),(0,63)  )   )
         X,Y = gp.grid(b,geo)
@@ -292,6 +302,19 @@ class initialization(gpTest):
         l[0]=[phi]
         psi=l[0][0]
         self.assertNear( np.max(np.abs(psi - phi) ) , 0 ,1e-6)
+
+        l2=gp.level.fromLevel(l)
+        self.assertEqual(l.nComponents,l2.nComponents)
+
+        
+        psi=l2[0][0]
+        np.testing.assert_array_equal(psi.shape,phi.shape)
+        self.assertNear( np.max(np.abs(psi - phi) ) , 0 ,1e-6)
+
+
+
+
+
     
 
     def test_initGaussianMultipleLevel(self):
@@ -380,44 +403,10 @@ class functional(unittest.TestCase):
         phi2.save("trappedVortex")
 
 
-def createField(domain,shape,selections=[],dtype="real"):
-    geo=gp.geometry(  domain, shape    )
-    level=gp.level( geo,[geo.domainBox()],dtype=dtype )
-    levels=[level]
-
-    nLevels=len(selections) + 1
-
-    
-    for lev in range(1,nLevels):
-        ref=[2,2]
-        geo=levels[lev-1].geo
-        geo2=geo.refine(ref)
-        box2=geo.selectBox(selections[lev-1]  ).refine(ref)
-
-        levels.append( gp.level(geo2,[box2] ,dtype=dtype) )
-    return gp.field(levels)
 
 
 
 
-def initGaussian(phi, alphaReal, alphaImag=None):
-    for lev in range( len(phi) ):
-        level=phi[lev]
-        
-        for iBox,box in enumerate(level.boxes):
-            X,Y = gp.grid(box,level.geo)
-            r=np.sqrt(X**2 + Y**2)
-            phi0=np.exp(-alphaReal*r**2)
-
-            if alphaImag!=None:
-                phi0+=1j*np.exp(-alphaImag*r**2)
-            else:
-                if level.dtype == "complex":
-                    phi0=phi0 + 1j*phi0*0
-            
-            level[iBox]=[ phi0 ]
-    phi.averageDown()
-    
 
 
 
@@ -440,49 +429,44 @@ class timeStepping(gpTest):
 
     def timeSteppingTest( self,stepperName ):
         print("Time stepping - {} ".format(stepperName) )
+        
         alpha=1/(2*2**2)
         shape=(64,64)
         domain=[ [-10,10],[-10,10] ]
         selections=[]
         #selections=[ [ [-2,2] , [-2,2]     ]  ,[  [-1,1] , [-1,1]   ] , [ [-0.5,0.5], [-0.5,0.5]  ] , [[-0.1,0.1],[-0.1,0.1]] ]
 
-        phiOld=createField( domain,shape,selections=selections,dtype="complex" )
-        phiNew=createField( domain,shape,selections=selections,dtype="complex" )
+        phi0=gp.createField( domain,shape,selections=selections,dtype="complex" )
+        #phiNew=createField( domain,shape,selections=selections,dtype="complex" )
 
-        initGaussian(phiOld,alphaReal=alpha)
+        gp.initGaussian(phi0,alphaReal=alpha)
 
-        phiOld.norm=[1]
 
-        phiOld.save("init")
+        phi0.norm=[1]
 
         #plotRadial(phiOld)
         #plt.show()
 
         N=1
 
-        dt=0.01* phiOld[ len(phiOld) - 1  ].geo.cellSize[0] **2
-
-        func=gp.trappedVortex( g=100,omega=[1,1] )
-        func.define(phiOld)
-        stepper=gp.stepper( func, kind=stepperName,realTime=False )
-        stepper.define(phiOld)
-        stepper.enableNormalization([N])
-        phiOld.norm=[N]
-
-        #func.addVortex( [0,0 ] )
-
-        Path("output").mkdir(parents=True, exist_ok=True)
-        phiOld.save("output/phi_{:d}".format(0) )
-
-        nBlocks=10
-        for iBlock in range(nBlocks):
-            for iStep in range( 1000 ):
-                stepper.advance( phiOld,phiNew, dt )
-                phiOld, phiNew = phiNew, phiOld
-            phiOld.save("output/phi_{:d}".format(iBlock+1) )
-            print( "t: {:f}, Max den.:{:f} ".format( phiOld.time,np.max(np.abs(phiOld[0][0][0])**2)  ) )
         
 
+        dt=0.01* phi0[ len(phi0) - 1  ].geo.cellSize[0] **2
+
+        func=gp.trappedVortex( g=100,omega=[1,1] )
+        stepper=gp.stepper( func, kind=stepperName,realTime=False )
+        stepper.enableNormalization([N])
+
+
+        maxNBlocks=10
+        sim=gp.simulation(phi0,stepper=stepper,maxStepsPerBlock=1000,maxNBlocks=maxNBlocks,timeStep=dt,outputDir="imagTime")
+
+        sim.run()
+
+
+        phiOld=gp.field.load("imagTime/fields/phi_{:d}".format(maxNBlocks-1))
+
+        
         densityMax=np.max(np.abs(phiOld[0][0][0])**2)
         self.assertNear(densityMax , 0.056432 , 1e-6 )
 
@@ -491,29 +475,22 @@ class timeStepping(gpTest):
         #plt.legend()
         #plt.show()
 
-        phiOld=gp.field.load("output/phi_{:d}".format(nBlocks-1))
+        
 
-
-    # real time evolution
+    ########### real time evolution
 
 
         func=gp.trappedVortex(g=100,omega=[1,1] )
-        func.define(phiOld)
         stepper=gp.stepper( func , realTime= True,kind="RK4" )
-        stepper.define(phiOld)
-        stepper.enableNormalization([N])
+        #stepper.enableNormalization([N])
 
-
-        dt=0.01* phiOld[ len(phiOld) - 1  ].geo.cellSize[0] **2
+        dt=0.01* phi0[ len(phi0) - 1  ].geo.cellSize[0] **2
+        phiOld.time=0
+        simReal = gp.simulation(phiOld,stepper=stepper,maxStepsPerBlock=1000,maxNBlocks=10,timeStep=dt,outputDir="realTime")
+                
+        simReal.run()
         
-        for iBlock in (range(20) ):
-            for iStep in range(1000):
-                stepper.advance( phiOld,phiNew, dt )
-                phiOld, phiNew = phiNew, phiOld
-            print( "t: {:f}, Max den.:{:f} ".format( phiOld.time,np.max(np.abs(phiOld[0][0][0])**2)  ) )
-
-        
-        densityMax=np.max(np.abs(phiOld[0][0][0])**2)
+        densityMax=np.max(np.abs(simReal.phiOld[0][0][0])**2)
         self.assertNear(densityMax , 0.056432 , 1e-6 )
 
 
@@ -524,11 +501,13 @@ class timeStepping(gpTest):
         #plt.legend()
         #plt.show()
 
+
     def test_eulero(self):
         self.timeSteppingTest("eulero")
     def test_RK4(self):
         self.timeSteppingTest("RK4")
     
+
     @unittest.skip("time stepping on two levels")
     def test_euleroTwoLevels(self):
         alpha=1/(2*2**2)

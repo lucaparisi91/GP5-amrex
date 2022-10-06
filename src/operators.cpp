@@ -49,15 +49,12 @@ namespace gp
         }
     }
 
-    void trappedVortex::define( levels & initLevels)
-    {
-        _lap.define(initLevels);
-    }
 
     void trappedVortex::addVortex( const std::array<real_t,AMREX_SPACEDIM> & x)
     {
         _vortexCenters.push_back(x);
     }
+
 
     void trappedVortex::apply( realWaveFunction & waveOld , realWaveFunction & waveNew )
     {
@@ -68,7 +65,7 @@ namespace gp
         assert(waveOld.getNSpecies()==1 );
         assert(waveNew.getNSpecies()==1 );
         
-        _lap.apply( fieldOld, fieldNew );
+        getLaplacianOperator().apply( fieldOld, fieldNew );
 
         for (int lev = 0; lev < fieldOld.size(); lev++)
         {
@@ -114,8 +111,7 @@ namespace gp
 
         assert(waveOld.getNSpecies()==1 );
         assert(waveNew.getNSpecies()==1 );
-        _lap.apply( fieldOld, fieldNew );
-
+        getLaplacianOperator().apply( fieldOld, fieldNew );
         
 
         for (int lev = 0; lev < fieldOld.size(); lev++)
@@ -171,6 +167,59 @@ namespace gp
 
 
                 });
+            }
+        }
+        
+    }
+    
+
+    void LHYDroplet::apply( complexWaveFunction & waveOld , complexWaveFunction & waveNew )
+    {
+
+        auto & fieldOld = waveOld.getPhi();
+        auto & fieldNew = waveNew.getPhi();
+
+        assert(waveOld.getNSpecies()==1 );
+        assert(waveNew.getNSpecies()==1 );
+        getLaplacianOperator().apply( fieldOld, fieldNew );
+
+        for (int lev = 0; lev < fieldOld.size(); lev++)
+        {
+            auto & phiRealNew = fieldNew[lev].getMultiFab(0);
+            auto & phiImgNew = fieldNew[lev].getMultiFab(1);
+
+            auto & phiRealOld = fieldOld[lev].getMultiFab(0);
+            auto & phiImgOld = fieldOld[lev].getMultiFab(1);
+
+            auto & geo= fieldNew[lev].getGeometry();
+            const auto right= geo.ProbDomain().hi();
+            const auto left= geo.ProbDomain().lo();
+            auto  dx = geo.CellSizeArray();
+
+            for ( MFIter mfi(phiRealNew); mfi.isValid(); ++mfi )
+            {
+                const Box& vbx = mfi.validbox();
+                auto const& phiRealNewArr = phiRealNew.array(mfi);
+                auto const& phiRealOldArr = phiRealOld.array(mfi);
+                
+                auto const& phiImgNewArr = phiImgNew.array(mfi);
+                auto const& phiImgOldArr = phiImgOld.array(mfi);
+
+
+                amrex::ParallelFor(vbx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    auto rho = phiRealOldArr(i,j,k)*phiRealOldArr(i,j,k) + phiImgOldArr(i,j,k)*phiImgOldArr(i,j,k) ;
+
+                    auto V = -3 * rho + 5/2. * sqrt(rho*rho*rho);
+
+                    phiRealNewArr(i,j,k)= - 0.5* phiRealNewArr(i,j,k) + 
+                    V*phiRealOldArr(i,j,k) ;
+                    phiImgNewArr(i,j,k)= - 0.5* phiImgNewArr(i,j,k) + 
+                    V*phiImgOldArr(i,j,k) ;
+
+
+                } );
             }
         }
         

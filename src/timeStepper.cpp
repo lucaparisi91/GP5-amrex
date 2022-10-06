@@ -134,6 +134,7 @@ namespace gp
         levelsOut.averageDown();
 
     }
+    
 
     void RK4TimeStepper::advanceImaginaryTime( complexWaveFunction & oldWave , complexWaveFunction & newWave, real_t dt )
     {
@@ -183,7 +184,7 @@ namespace gp
         add(newWave,k2,newWave,1./6);
 
         newWave.getPhi().increaseTime(dt);
-        
+
         applyConstraint(newWave);
         
         

@@ -115,11 +115,12 @@ namespace gp{
         amrex::Array<int,AMREX_SPACEDIM> _refinement;
         int _nComponents;
         real_t _time;
+        
+
         protected:
         int _nGrow=2;
         amrex::Vector<std::string> _names;
-
-
+        
     };
 
 
@@ -181,6 +182,9 @@ class levels
 
     auto getTime(){return _levels[0]->getTime();}
 
+    void setTime( real_t t0);
+
+
     void increaseTime(real_t dt );
 
 
@@ -227,6 +231,9 @@ class waveFunction
     std::vector<real_t> getNorm();
 
     auto getTime() const {return (*_phi)[0].getTime()  ; }
+
+    void setTime(real_t t) {_phi->setTime(t); }
+
 
     protected:
 

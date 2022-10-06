@@ -14,5 +14,6 @@ levels:
       - 0
       - 63
     - *id002
-  dtype: complex
+  dtype: real
   nComponents: 1
+time: 0.0

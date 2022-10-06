@@ -144,6 +144,8 @@ namespace gp
 
         const auto & _levels = *_phi ;
         _density->define( _levels );
+        _density->setTime(-1);
+
 
     }
 
@@ -155,6 +157,8 @@ namespace gp
         _density=std::make_shared<levels>();
         const auto & _levels = *_phi ;
         _density->define( _levels );
+        _density->setTime(-1);
+
     }
 
     void complexWaveFunction::define( complexWaveFunction & wave )
@@ -169,6 +173,7 @@ namespace gp
         
 
         _density->resizeNComponents(_phi->getNComponents()/2 );
+        _density->setTime(-1);
 
         assert(_density->getNComponents()==1);
     }
@@ -189,18 +194,29 @@ namespace gp
         _density->resizeNComponents(_phi->getNComponents()/2 );
 
         assert(_density->getNComponents()==1);
+        _density->setTime(-1);
+
     }
 
     void realWaveFunction::updateDensity( int c)
     {
         auto & phi = getPhi();
         auto & density = getDensity();
-
+        
         for(int lev=0;lev<phi.size();lev++)
         {
-            gp::updateDensity( phi[lev],density[lev] , c );
+                gp::updateDensity( phi[lev],density[lev] , c );   
         }
         density.averageDown();
+    }
+
+    void waveFunction::updateDensity()
+    {
+        for(int c=0;c<getNSpecies();c++)
+        {
+            updateDensity( c );
+        }
+
     }
 
 
@@ -211,10 +227,15 @@ namespace gp
 
         for(int lev=0;lev<phi.size();lev++)
         {
-            gp::updateDensity( phi[lev],density[lev] , 2*c,2*c+1 , c );
+            
+                gp::updateDensity( phi[lev],density[lev] , 2*c,2*c+1 , c );
+                
         }
+
+        
         density.averageDown();
     }
+
 
     void updateDensity( level & phiLevel , level & densityLevel , int c  )
     {
@@ -409,6 +430,17 @@ void levels::increaseTime( real_t dt)
     }
 
 
+void levels::setTime( real_t t0 )
+    {
+        for(int lev=0;lev<=_finestLevel;lev++)
+        {
+            _levels[lev]->setTime( t0 );
+        }
+    }
+
+
+
+
 void levels::define( std::vector<std::shared_ptr<level_t> > levels_ ) {
 
     _levels=levels_;
@@ -579,6 +611,8 @@ void complexWaveFunction::normalize( real_t N , int c)
         phi[lev][2*c].mult( prefactor );
         phi[lev][2*c + 1].mult( prefactor );
     }
+
+
 
 
 };

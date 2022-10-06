@@ -260,6 +260,9 @@ namespace pyInterfaceAmreX
 
         real_t getTime() const  { return _wave->getTime() ; }
 
+        void setTime( real_t t) { _wave->setTime(t); }
+
+
 
         private:
 
@@ -330,7 +333,10 @@ namespace pyInterfaceAmreX
     {
         public:
 
-        virtual void apply( realField & levelsOld , realField & levelsNew)=0;
+        virtual void apply( realField & levelsOld , realField & levelsNew){ throw std::runtime_error("apply not defined for real field"); };
+        
+        virtual void apply( complexField & levelsOld , complexField & levelsNew){ throw std::runtime_error("apply not defined for complex field"); };
+
 
         virtual std::shared_ptr<gp::functional> getFunctional()=0;
 
@@ -377,11 +383,39 @@ namespace pyInterfaceAmreX
 
     };
 
+
+    class LHYDroplet : public functional
+    {
+        public:
+
+        LHYDroplet()  {
+            _func=std::make_shared<gp::LHYDroplet>();
+        }
+
+        virtual void apply( complexField & levelsOld , complexField & levelsNew) override
+        {
+            _func->apply( levelsOld.getWaveFunction(),levelsNew.getWaveFunction() );
+        }
+
+        void define( field & wave )
+        {
+            _func->define( wave.getWaveFunction().getPhi()  );
+        }
+
+        virtual std::shared_ptr<gp::functional> getFunctional() override {return _func; }
+
+
+        private:
+
+        std::shared_ptr<gp::LHYDroplet> _func;
+
+    };
+
     class stepper
     {
         public:
 
-        stepper( trappedVortex & func , const std::string & name  )
+        stepper( functional & func , const std::string & name  )
         {
 
             if (name == "eulero")
@@ -415,7 +449,6 @@ namespace pyInterfaceAmreX
             _stepper->advanceRealTime(oldLevels.getWaveFunction(),newLevels.getWaveFunction(),dt);
         }
 
-
         void advanceImaginaryTime( complexField & oldLevels, complexField & newLevels,real_t dt)
         {
             _stepper->advanceImaginaryTime(oldLevels.getWaveFunction(),newLevels.getWaveFunction(),dt);
@@ -425,9 +458,6 @@ namespace pyInterfaceAmreX
         {
             _stepper->define(wave.getWaveFunction() );
         }
-
-
-
 
 
         private:
@@ -466,7 +496,9 @@ PYBIND11_MODULE(gpAmreX, m) {
      .def("averageDown",&pyInterfaceAmreX::realField::averageDown)
      .def("getNorm",&pyInterfaceAmreX::realField::getNorm)
      .def("normalize",&pyInterfaceAmreX::realField::normalize)
-     .def("getTime",&pyInterfaceAmreX::realField::getTime);
+     .def("getTime",&pyInterfaceAmreX::realField::getTime)
+     .def("setTime",&pyInterfaceAmreX::realField::setTime);
+
 
 
     py::class_<pyInterfaceAmreX::realField , pyInterfaceAmreX::field >(m, "realField")
@@ -478,13 +510,11 @@ PYBIND11_MODULE(gpAmreX, m) {
 
     
 
-    py::class_<pyInterfaceAmreX::functional>(m, "functional" )
-    .def("apply",& pyInterfaceAmreX::functional::apply)
-    
+    py::class_<pyInterfaceAmreX::functional>(m, "functional" )    
     ;
 
 
-    py::class_<pyInterfaceAmreX::trappedVortex>(m, "trappedVortex")
+    py::class_<pyInterfaceAmreX::trappedVortex,pyInterfaceAmreX::functional>(m, "trappedVortex")
      .def(py::init<  real_t ,  std::array<real_t,AMREX_SPACEDIM>  >() )
      .def("addVortex",&pyInterfaceAmreX::trappedVortex::addVortex)
      //.def("apply",& pyInterfaceAmreX::trappedVortex::apply)
@@ -495,14 +525,23 @@ PYBIND11_MODULE(gpAmreX, m) {
         pyInterfaceAmreX::complexField & , pyInterfaceAmreX::complexField & )> (& pyInterfaceAmreX::trappedVortex::apply ))     
      ;
 
+     py::class_<pyInterfaceAmreX::LHYDroplet,pyInterfaceAmreX::functional>(m, "LHYDroplet")
+     .def(py::init< >() )
+     .def("define",& pyInterfaceAmreX::LHYDroplet::define )   
+     .def("apply", static_cast< void (pyInterfaceAmreX::LHYDroplet::*)(
+        pyInterfaceAmreX::complexField & , pyInterfaceAmreX::complexField & )> (& pyInterfaceAmreX::LHYDroplet::apply ))
+     ;
 
+    
     py::class_<pyInterfaceAmreX::stepper>(m, "stepper")
-     .def(py::init<  pyInterfaceAmreX::trappedVortex &  , const std::string & >() )
+     .def(py::init<  pyInterfaceAmreX::functional &  , const std::string & >() )
      .def("advance",& pyInterfaceAmreX::stepper::advance )
      .def("advanceRealTime",& pyInterfaceAmreX::stepper::advanceRealTime )
      .def("addNormalizationConstraint",& pyInterfaceAmreX::stepper::addNormalizationConstraint )
      .def("advanceImaginaryTime",& pyInterfaceAmreX::stepper::advanceImaginaryTime )
       .def("define",& pyInterfaceAmreX::stepper::define )
+
+
     ;
 
   ;         

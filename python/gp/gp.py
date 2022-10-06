@@ -1,11 +1,13 @@
 import pathlib
+from tkinter import N
+from types import ClassMethodDescriptorType
 import numpy as np
 import gpAmreX
 from ruamel.yaml import YAML
 import pathlib
 import h5py
-
-
+import copy
+import sys
 
 yaml=YAML()
 
@@ -14,9 +16,15 @@ class box:
 
     @staticmethod
     def fromYAML(ob):
-        return box(ob["extent"])    
+        return box(ob["extent"])   
+    
+    @classmethod
+    def fromBox(cls,box2):
+        return cls(box2.extent) 
 
     def __init__(self,extent):
+
+
         self.extent=extent
 
         left=np.array([  dExtent[0]    for dExtent in extent] ).astype(int)
@@ -56,6 +64,10 @@ class geometry:
         domain=obYAML["domain"]
         shape=obYAML["shape"]
         return geometry( domain,shape )
+    
+    @classmethod
+    def fromGeometry(cls,geo):
+        return cls(geo.domain,geo.shape)
 
 
     def __init__(self,domain,shape):
@@ -127,7 +139,7 @@ def cppLevelType(dtype):
 
 
 class level:
-
+    
     @staticmethod
     def fromYAML(ob):
         """ Warning: does not load the data array """
@@ -138,6 +150,16 @@ class level:
 
         return level(geo,boxes,dtype=dtype,nComponents=nComponents )
 
+    @classmethod
+    def fromLevel(cls,level):
+        geo=geometry.fromGeometry(level.geo)
+        boxes=[ box.fromBox(b) for b in level.boxes ]
+        level2=cls(geo,boxes,dtype=level.dtype,nComponents=level.nComponents)
+        for c in range(level.nComponents):
+            level2[c]=level[c]
+        return level2
+    
+    
 
 
     def __init__(self,geo,boxes,dtype="real",nComponents=1):
@@ -160,6 +182,7 @@ class level:
 
         self._levelCpp= levelType( geo.cpp(),cppBoxes, self.nRealComponents )
         self._dtype=dtype
+
     
 
     def toYAML(self):
@@ -219,6 +242,7 @@ class level:
             self.cpp().setData(datas[c], self.boxes[i].cpp() , c )
         
 
+
 class field:
 
     @staticmethod
@@ -226,13 +250,14 @@ class field:
         dims=len(hdf5Box)//2
         extent=[ [ int(hdf5Box[i]),int(hdf5Box[dims+i]) ]    for i in range(dims) ]
         return( box(extent))
-
-
+    
 
     @staticmethod
     def fromYAML(ob):
         levels=[  level.fromYAML(l) for l in ob["levels"]  ]
-        return field( levels)
+        psi=field( levels)
+        psi.time=ob["time"]
+        return( psi)
 
     @staticmethod
     def load(dirname):
@@ -244,7 +269,7 @@ class field:
         field2=field.fromYAML(ob)
         field2.loadData(dirname)
         return field2
-    
+
 
     def loadData(self,dirname):
         datas= [ [] for c in range( len(self))  ] 
@@ -269,16 +294,13 @@ class field:
         for lev in range( len(self) ):
             for c in range(self.nComponents):
                 self[lev][0]=datas[lev]
+
+
+    @classmethod
+    def fromField(cls,field):
+        levels2=[level.fromLevel(l) for l in field._levels  ]
+        return cls(levels2)
     
-        
-
-
-    
-
-        
-
-
-
 
     def __init__(self, levels):
         self._levels=levels
@@ -296,7 +318,7 @@ class field:
     
 
     def toYAML(self):
-        return {"levels" : [ l.toYAML() for l in self._levels ]   }
+        return {"levels" : [ l.toYAML() for l in self._levels ] , "time" : self.time   }
     
     
 
@@ -306,13 +328,9 @@ class field:
 
     def save(self,dirname):
         self.cpp().save(dirname)
-        ob=self.toYAML( )
-        
+        ob=self.toYAML( )    
         yaml.dump( ob, pathlib.Path(dirname) / "field.yaml" )
-
-
-
-
+ 
 
 
     
@@ -332,6 +350,11 @@ class field:
     @property
     def time(self):
         return self.cpp().getTime()
+
+
+    @time.setter
+    def time(self,t):
+        return self.cpp().setTime(t)
     
     @property
     def norm(self):
@@ -357,10 +380,13 @@ class field:
         return self[0].nRealComponents
     
 
-    
 
 
 class trappedVortex:
+    @staticmethod
+    def fromYAML(self,ob):
+        return trappedVortex(g=ob["g"],omega=ob["omega"] )
+    
     def __init__( self, g=1,omega=[1,1] ):
         self.g=g
         self.omega=omega
@@ -379,23 +405,89 @@ class trappedVortex:
         self.cpp().apply(phiIn.cpp(),phiOut.cpp() )
     def addVortex(self,center):
         self.cpp().addVortex(center)
+    
+    def toYAML(self):
+        return {"name": "trappedVortex","g" : self.g, "omega" : self.omega }
 
+
+
+def str_to_class(str):
+    return getattr(sys.modules[__name__], str)
+
+
+
+class functional:
+    @staticmethod
+    def fromYAML(ob):
+        name=ob["name"]
+        cls=str_to_class(name)
+        return cls.fromYAML(ob)
+
+
+
+class LHYDroplet:
+    @classmethod
+    def fromYAML(cls,ob):
+        assert(ob["name"]=="LHYDroplet")
+        return cls()
+        
+
+    def __init__( self ):
+        self._LHYDroplet=gpAmreX.LHYDroplet()
+        self._initialized=False
+
+    def define(self,phi):
+        self.cpp().define(phi.cpp() )
+    def cpp( self ):
+        return self._LHYDroplet
+
+    def apply( self, phiIn,phiOut):
+        if not self._initialized:
+            self.cpp().define(phiIn.cpp())
+
+        self.cpp().apply(phiIn.cpp(),phiOut.cpp() )
+
+    def toYAML(self):
+        return {"name" : "LHYDroplet" }
+    
+    
 
 class stepper:
+
+    @classmethod
+    def fromYAML(cls,ob):
+        func=functional.fromYAML( ob["functional"] )
+        stepper2=cls( func,realTime=ob["realTime"],kind=ob["kind"])
+        if "N" in ob.keys():
+            stepper2.enableNormalization(ob["N"] )
+        return(stepper2)
+
+    
+
     def __init__(self,func,realTime=False,kind="eulero"):
         self._stepperCpp=gpAmreX.stepper( func.cpp() , kind )
-        self._realTime=realTime
+        self.realTime=realTime
         self._kind=kind
+        self._func=func
+        self._N=None
+
+
     def define(self,wave):
-        self.cpp().define(wave.cpp())
-    
+        self.cpp().define(wave.cpp() )
+        self._func.define( wave)
+
+
     def enableNormalization(self,N):
         self._N=N
         self.cpp().addNormalizationConstraint(N)
     
+
+    def toYAML(self):
+        ob={"realTime" : self.realTime , "kind" : self._kind , "functional" : self._func.toYAML()  }
+        if self._N is not None:
+            ob["N"]=self._N
+        return ob
     
-
-
 
 
 
@@ -407,7 +499,7 @@ class stepper:
         if phiOld.dtype=="real":
             self.cpp().advance( phiOld.cpp(), phiNew.cpp(), dt )
         else:
-            if not self._realTime:
+            if not self.realTime:
                 self.cpp().advanceImaginaryTime( phiOld.cpp(), phiNew.cpp(), dt )
             else:
                 self.cpp().advanceRealTime( phiOld.cpp(), phiNew.cpp(), dt )
@@ -424,3 +516,124 @@ def grid( box,geo):
         x.append( (  np.arange(box.left[d],box.right[d] + 1 ,1 ) + 0.5)*geo.cellSize[d] + geo.left[d] )
     
     return np.meshgrid(*x,indexing="ij")
+
+
+class simulation:
+
+    @classmethod
+    def load( cls, simDir ):
+        ob=yaml.load( pathlib.Path(simDir) / "sim.yaml" )
+        print(ob)
+        stepper2=stepper.fromYAML(ob["stepper"] )
+        maxStepsPerBlock=ob["run"]["maxStepsPerBlock"]
+        maxNBlocks=ob["run"]["maxNBlocks"]
+        outputDir=ob["run"]["outputDir"]
+        timeStep=ob["run"]["timeStep"]
+
+
+        phi0=field.load(ob["phi"] )
+
+        sim2=cls(
+        phi0=phi0,
+        stepper=stepper2,
+        maxStepsPerBlock=maxStepsPerBlock,
+        maxNBlocks=maxNBlocks,
+        timeStep=timeStep,
+        outputDir=outputDir ,
+        offset= 0
+        )
+
+        return(sim2)
+
+
+    def __init__(self,phi0,stepper,maxStepsPerBlock=1000,maxNBlocks=10, outputDir="output",timeStep=0.1,offset=0 ):
+        self.maxStepsPerBlock=maxStepsPerBlock
+        self.maxNBlocks=maxNBlocks
+        self.stepper=stepper
+        self.outputDir=outputDir
+        self.phiOld=phi0
+        self.phiNew=field.fromField( phi0 )
+        self.timeStep= timeStep
+        self.iBlock=offset
+        self.phi_file=None
+
+    def toYAML(self):
+        ob= { "run" : 
+                {
+                    "maxStepsPerBlock" : int(self.maxStepsPerBlock),
+                    "maxNBlocks" : int(self.maxNBlocks),
+                    "timeStep" : float(self.timeStep),
+                    "offset" : int(self.iBlock),
+                    "outputDir" : self.outputDir
+                },
+                "stepper": self.stepper.toYAML()
+            }
+
+
+        if self.phi_file is not None:
+            ob["phi"]= self.phi_file
+        
+        return (ob)
+    
+
+    def save(self):
+        self.phi_file="{}/fields/phi_{:d}".format( self.outputDir,self.iBlock+1 )
+        self.phiOld.save(self.phi_file )
+
+        ob=self.toYAML()
+        yaml.dump( ob, pathlib.Path(self.outputDir) / "sim.yaml" )
+
+
+
+    def run(self):
+        pathlib.Path(self.outputDir).mkdir(parents=True, exist_ok=True)
+        self.phiOld.save("output/phi_{:d}".format(0) )
+
+
+        self.stepper.define(self.phiOld)
+        for self.iBlock in range(self.iBlock,self.iBlock + self.maxNBlocks):
+            for iStep in range( self.maxStepsPerBlock):
+                self.stepper.advance( self.phiOld,self.phiNew, self.timeStep )
+                self.phiOld, self.phiNew = self.phiNew, self.phiOld
+            
+            
+            self.save()
+            print( "t: {:f}, Max den.:{:f} ".format( self.phiOld.time,np.max(np.abs(self.phiOld[0][0][0])**2)  ) )
+
+        
+
+def createField(domain,shape,selections=[],dtype="real"):
+    geo=geometry(  domain, shape    )
+    curLevel=level( geo,[geo.domainBox()],dtype=dtype )
+    levels=[curLevel]
+
+    nLevels=len(selections) + 1
+
+    
+    for lev in range(1,nLevels):
+        ref=[2,2]
+        geo=levels[lev-1].geo
+        geo2=geo.refine(ref)
+        box2=geo.selectBox(selections[lev-1]  ).refine(ref)
+
+        levels.append( level(geo2,[box2] ,dtype=dtype) )
+    return field(levels)
+
+def initGaussian(phi, alphaReal, alphaImag=None):
+    for lev in range( len(phi) ):
+        curLevel=phi[lev]
+        
+        for iBox,box in enumerate(curLevel.boxes):
+            X,Y = grid(box,curLevel.geo)
+            r=np.sqrt(X**2 + Y**2)
+            phi0=np.exp(-alphaReal*r**2)
+
+            if alphaImag!=None:
+                phi0+=1j*np.exp(-alphaImag*r**2)
+            else:
+                if curLevel.dtype == "complex":
+                    phi0=phi0 + 1j*phi0*0
+            
+            curLevel[iBox]=[ phi0 ]
+    phi.averageDown()
+    

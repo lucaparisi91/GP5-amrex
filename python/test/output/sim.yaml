@@ -1,0 +1,16 @@
+run:
+  maxStepsPerBlock: 1000
+  maxNBlocks: 10
+  timeStep: 0.0009765625
+  offset: 9
+  outputDir: output
+stepper:
+  realTime: true
+  kind: RK4
+  functional:
+    name: trappedVortex
+    g: 100
+    omega:
+    - 1
+    - 1
+phi: output/fields/phi_10
